@@ -1,0 +1,34 @@
+# Django Core
+Django==5.0.1
+djangorestframework==3.14.0
+djangorestframework-simplejwt==5.3.1
+
+# Django Channels (WebSockets) - Compatible con Windows
+channels==4.0.0
+daphne==4.0.0
+
+# CORS
+django-cors-headers==4.3.1
+
+# Generación de Códigos de Barras
+python-barcode==0.15.1
+Pillow==10.1.0
+
+# Generación de PDFs y Excel
+reportlab==4.0.8
+openpyxl==3.1.2
+xlsxwriter==3.1.9
+
+# Scheduler (Cierre automático)
+APScheduler==3.10.4
+
+# Utilidades
+python-decouple==3.8
+python-dateutil==2.8.2
+
+# Desarrollo
+ipython==8.19.0
+
+# NOTA: Para Windows, usaremos SQLite por defecto (ya viene con Python)
+# Si necesitas PostgreSQL en Windows, instala manualmente:
+# pip install psycopg2-binary (requiere Visual C++ Build Tools)
