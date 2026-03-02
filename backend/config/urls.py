@@ -33,6 +33,7 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # Configuración del admin
-admin.site.site_header = "Sistema de Asistencia IES Túpac Amaru"
+institution_name = settings.INSTITUTION_CONFIG.get('NAME', 'IES')
+admin.site.site_header = f"Sistema de Asistencia {institution_name}"
 admin.site.site_title = "Asistencia Admin"
 admin.site.index_title = "Panel de Administración"

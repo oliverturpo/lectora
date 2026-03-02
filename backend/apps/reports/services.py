@@ -15,7 +15,14 @@ from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.enums import TA_CENTER
 from apps.attendance.models import DailySession, Attendance
+from apps.attendance.utils import get_system_config
 from apps.students.models import Student
+
+
+def get_institution_name():
+    """Obtiene el nombre de la institución desde la configuración del sistema"""
+    config = get_system_config()
+    return config.get('institution_name', settings.INSTITUTION_CONFIG.get('NAME', 'IES'))
 
 # Rutas de imagenes para reportes
 STATIC_DIR = os.path.join(settings.BASE_DIR, 'static', 'images')
@@ -103,7 +110,7 @@ def generate_excel_report(date, grade=None, status=None):
     )
 
     # Titulo
-    institution = settings.INSTITUTION_CONFIG.get('NAME', 'IES Tupac Amaru')
+    institution = get_institution_name()
     ws.merge_cells('A1:F1')
     ws['A1'] = institution
     ws['A1'].font = Font(bold=True, size=14)
@@ -304,6 +311,8 @@ def generate_pdf_report(date, grade=None, status=None):
         elements.append(Paragraph("No hay registros de asistencia para esta fecha.", no_data_style))
 
     # ============ FUNCION PARA HEADER Y FOOTER FIJOS ============
+    institution_name = get_institution_name()
+
     def add_header_footer(canvas, doc):
         """Dibuja header y footer fijos en cada pagina"""
         canvas.saveState()
@@ -343,7 +352,7 @@ def generate_pdf_report(date, grade=None, status=None):
         canvas.setFont('Helvetica-Bold', 11)
         canvas.setFillColor(colors.HexColor('#1e3a5f'))
         canvas.drawCentredString(center_x, header_top - 0.5*cm, "INSTITUCIÓN EDUCATIVA SECUNDARIA")
-        canvas.drawCentredString(center_x, header_top - 1*cm, "TÚPAC AMARU")
+        canvas.drawCentredString(center_x, header_top - 1*cm, institution_name.upper())
 
         # Subtitulo
         canvas.setFont('Helvetica-Bold', 10)
@@ -383,6 +392,719 @@ def generate_pdf_report(date, grade=None, status=None):
         canvas.restoreState()
 
     doc.build(elements, onFirstPage=add_header_footer, onLaterPages=add_header_footer)
+    buffer.seek(0)
+
+    return buffer
+
+
+def generate_nomina_by_grade_pdf(grade, section=None):
+    """
+    Genera PDF con nómina de estudiantes por grado y sección
+    """
+    buffer = BytesIO()
+    page_width, page_height = A4
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=5*cm,
+        bottomMargin=2*cm,
+        leftMargin=1.5*cm,
+        rightMargin=1.5*cm
+    )
+
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Filtrar estudiantes
+    students = Student.objects.filter(is_active=True, grade=grade)
+    if section:
+        students = students.filter(section=section)
+    students = students.order_by('section', 'paternal_surname', 'maternal_surname')
+
+    # Tabla: N°, DNI, Apellidos y Nombres, Grado, Sección
+    table_data = [['N°', 'DNI', 'Apellidos y Nombres', 'Grado', 'Sección']]
+    for idx, student in enumerate(students, 1):
+        table_data.append([
+            str(idx),
+            student.dni,
+            student.full_name,
+            student.grade,
+            student.section
+        ])
+
+    if len(table_data) > 1:
+        table = Table(
+            table_data,
+            colWidths=[1*cm, 2.5*cm, 8*cm, 1.5*cm, 1.5*cm],
+            repeatRows=1
+        )
+
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (2, 1), (2, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ])
+
+        table.setStyle(style)
+        elements.append(table)
+    else:
+        no_data_style = ParagraphStyle(
+            'NoData',
+            parent=styles['Normal'],
+            fontSize=11,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#666666'),
+            spaceBefore=30
+        )
+        elements.append(Paragraph("No hay estudiantes registrados para este grado/sección.", no_data_style))
+
+    # Footer con total
+    elements.append(Spacer(1, 20))
+    total_style = ParagraphStyle(
+        'Total',
+        parent=styles['Normal'],
+        fontSize=10,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    elements.append(Paragraph(f"<b>Total de estudiantes: {len(table_data) - 1}</b>", total_style))
+
+    institution_name = get_institution_name()
+
+    def add_nomina_header_footer(canvas, doc):
+        """Dibuja header y footer para nómina por grado"""
+        canvas.saveState()
+
+        # Header
+        img_size = 1.8*cm
+        header_top = page_height - 1*cm
+
+        if os.path.exists(LOGO_PATH):
+            canvas.drawImage(
+                LOGO_PATH,
+                1.5*cm,
+                header_top - img_size,
+                width=img_size,
+                height=img_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        if os.path.exists(ESCUDO_PATH):
+            canvas.drawImage(
+                ESCUDO_PATH,
+                page_width - 1.5*cm - img_size,
+                header_top - img_size,
+                width=img_size,
+                height=img_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        center_x = page_width / 2
+        canvas.setFont('Helvetica-Bold', 11)
+        canvas.setFillColor(colors.HexColor('#1e3a5f'))
+        canvas.drawCentredString(center_x, header_top - 0.5*cm, "INSTITUCIÓN EDUCATIVA SECUNDARIA")
+        canvas.drawCentredString(center_x, header_top - 1*cm, institution_name.upper())
+
+        canvas.setFont('Helvetica-Bold', 10)
+        canvas.setFillColor(colors.black)
+        if section:
+            canvas.drawCentredString(center_x, header_top - 1.7*cm, f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria - Sección {section}")
+        else:
+            canvas.drawCentredString(center_x, header_top - 1.7*cm, f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria")
+
+        canvas.setStrokeColor(colors.HexColor('#1e40af'))
+        canvas.setLineWidth(1.5)
+        canvas.line(1.5*cm, header_top - 2.3*cm, page_width - 1.5*cm, header_top - 2.3*cm)
+
+        # Footer
+        canvas.setStrokeColor(colors.HexColor('#1e40af'))
+        canvas.setLineWidth(1)
+        canvas.line(1.5*cm, 1.5*cm, page_width - 1.5*cm, 1.5*cm)
+
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColor(colors.HexColor('#666666'))
+        canvas.drawString(1.5*cm, 1*cm, "Sistema de Asistencia - Django + React")
+
+        gen_text = f"Generado: {timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')}"
+        canvas.drawCentredString(page_width / 2, 1*cm, gen_text)
+
+        page_num = f"Página {doc.page}"
+        canvas.drawRightString(page_width - 1.5*cm, 1*cm, page_num)
+
+        canvas.restoreState()
+
+    doc.build(elements, onFirstPage=add_nomina_header_footer, onLaterPages=add_nomina_header_footer)
+    buffer.seek(0)
+
+    return buffer
+
+
+def generate_nomina_oficial_pdf():
+    """
+    Genera PDF con nómina oficial de todos los estudiantes del colegio
+    """
+    buffer = BytesIO()
+    page_width, page_height = A4
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=6*cm,
+        bottomMargin=2*cm,
+        leftMargin=1.5*cm,
+        rightMargin=1.5*cm
+    )
+
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Obtener TODOS los estudiantes activos
+    students = Student.objects.filter(is_active=True).order_by(
+        'grade', 'section', 'paternal_surname', 'maternal_surname'
+    )
+
+    # Resumen por grados
+    stats_by_grade = {}
+    for student in students:
+        grade = student.grade
+        if grade not in stats_by_grade:
+            stats_by_grade[grade] = 0
+        stats_by_grade[grade] += 1
+
+    # Tabla de resumen
+    summary_data = [['Grado', 'Total Estudiantes']]
+    for grade in sorted(stats_by_grade.keys()):
+        summary_data.append([f"{grade}° Secundaria", str(stats_by_grade[grade])])
+
+    summary_table = Table(summary_data, colWidths=[8*cm, 4*cm])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+
+    # Tabla principal: N°, DNI, Apellidos y Nombres, Grado, Sección
+    table_data = [['N°', 'DNI', 'Apellidos y Nombres', 'Grado', 'Sección']]
+    for idx, student in enumerate(students, 1):
+        table_data.append([
+            str(idx),
+            student.dni,
+            student.full_name,
+            student.grade,
+            student.section
+        ])
+
+    if len(table_data) > 1:
+        table = Table(
+            table_data,
+            colWidths=[1*cm, 2.5*cm, 8*cm, 1.5*cm, 1.5*cm],
+            repeatRows=1
+        )
+
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (2, 1), (2, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ])
+
+        table.setStyle(style)
+        elements.append(table)
+    else:
+        no_data_style = ParagraphStyle(
+            'NoData',
+            parent=styles['Normal'],
+            fontSize=11,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#666666'),
+            spaceBefore=30
+        )
+        elements.append(Paragraph("No hay estudiantes registrados.", no_data_style))
+
+    # Footer con total
+    elements.append(Spacer(1, 20))
+    total_style = ParagraphStyle(
+        'Total',
+        parent=styles['Normal'],
+        fontSize=10,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    elements.append(Paragraph(f"<b>Total de estudiantes: {len(table_data) - 1}</b>", total_style))
+
+    institution_name = get_institution_name()
+
+    def add_oficial_header_footer(canvas, doc):
+        """Dibuja header y footer para nómina oficial"""
+        canvas.saveState()
+
+        # Header
+        img_size = 1.8*cm
+        header_top = page_height - 1*cm
+
+        if os.path.exists(LOGO_PATH):
+            canvas.drawImage(
+                LOGO_PATH,
+                1.5*cm,
+                header_top - img_size,
+                width=img_size,
+                height=img_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        if os.path.exists(ESCUDO_PATH):
+            canvas.drawImage(
+                ESCUDO_PATH,
+                page_width - 1.5*cm - img_size,
+                header_top - img_size,
+                width=img_size,
+                height=img_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        center_x = page_width / 2
+        canvas.setFont('Helvetica-Bold', 11)
+        canvas.setFillColor(colors.HexColor('#1e3a5f'))
+        canvas.drawCentredString(center_x, header_top - 0.5*cm, "INSTITUCIÓN EDUCATIVA SECUNDARIA")
+        canvas.drawCentredString(center_x, header_top - 1*cm, institution_name.upper())
+
+        canvas.setFont('Helvetica-Bold', 10)
+        canvas.setFillColor(colors.black)
+        canvas.drawCentredString(center_x, header_top - 1.7*cm, "NÓMINA OFICIAL DE ESTUDIANTES")
+
+        canvas.setFont('Helvetica', 9)
+        year = datetime.now().year
+        canvas.drawCentredString(center_x, header_top - 2.2*cm, f"AÑO ACADÉMICO {year}")
+
+        canvas.setStrokeColor(colors.HexColor('#1e40af'))
+        canvas.setLineWidth(1.5)
+        canvas.line(1.5*cm, header_top - 2.8*cm, page_width - 1.5*cm, header_top - 2.8*cm)
+
+        # Footer
+        canvas.setStrokeColor(colors.HexColor('#1e40af'))
+        canvas.setLineWidth(1)
+        canvas.line(1.5*cm, 1.5*cm, page_width - 1.5*cm, 1.5*cm)
+
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColor(colors.HexColor('#666666'))
+        canvas.drawString(1.5*cm, 1*cm, "Sistema de Asistencia - Django + React")
+
+        gen_text = f"Generado: {timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')}"
+        canvas.drawCentredString(page_width / 2, 1*cm, gen_text)
+
+        page_num = f"Página {doc.page}"
+        canvas.drawRightString(page_width - 1.5*cm, 1*cm, page_num)
+
+        canvas.restoreState()
+
+    doc.build(elements, onFirstPage=add_oficial_header_footer, onLaterPages=add_oficial_header_footer)
+    buffer.seek(0)
+
+    return buffer
+
+
+def generate_student_attendance_pdf(student_id):
+    """
+    Genera PDF con el historial de asistencia de un estudiante
+    """
+    from apps.students.models import Student
+
+    try:
+        student = Student.objects.get(id=student_id, is_active=True)
+    except Student.DoesNotExist:
+        return None
+
+    buffer = BytesIO()
+    page_width, page_height = A4
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=6*cm,
+        bottomMargin=2*cm,
+        leftMargin=1.5*cm,
+        rightMargin=1.5*cm
+    )
+
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Obtener historial de asistencias
+    attendances = Attendance.objects.filter(student=student).select_related('session').order_by('-session__date')
+
+    # Calcular estadísticas
+    total_days = attendances.count()
+    present = attendances.filter(status='present').count()
+    late = attendances.filter(status='late').count()
+    absent = attendances.filter(status='absent').count()
+    attendance_percentage = round((present + late) / total_days * 100, 1) if total_days > 0 else 0
+
+    # Resumen estadístico
+    summary_data = [[
+        f"Total Días\n{total_days}",
+        f"Presentes\n{present}",
+        f"Tardanzas\n{late}",
+        f"Faltas\n{absent}",
+        f"Asistencia\n{attendance_percentage}%"
+    ]]
+    summary_table = Table(summary_data, colWidths=[3*cm, 3*cm, 3*cm, 3*cm, 3*cm])
+    summary_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#dbeafe')),
+        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#dcfce7')),
+        ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#fef3c7')),
+        ('BACKGROUND', (3, 0), (3, 0), colors.HexColor('#fee2e2')),
+        ('BACKGROUND', (4, 0), (4, 0), colors.HexColor('#e0e7ff')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+    ]))
+
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+
+    # Tabla de historial
+    if total_days > 0:
+        table_data = [['N°', 'Fecha', 'Estado', 'Hora', 'Método']]
+        for idx, att in enumerate(attendances, 1):
+            # Convertir timestamp a hora local
+            hora_local = '-'
+            if att.scan_timestamp:
+                local_time = timezone.localtime(att.scan_timestamp)
+                hora_local = local_time.strftime('%H:%M:%S')
+
+            fecha_str = att.session.date.strftime('%d/%m/%Y')
+
+            table_data.append([
+                str(idx),
+                fecha_str,
+                att.get_status_display(),
+                hora_local,
+                att.get_registration_method_display()
+            ])
+
+        table = Table(
+            table_data,
+            colWidths=[1*cm, 2.5*cm, 2.5*cm, 2.5*cm, 3*cm],
+            repeatRows=1
+        )
+
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ])
+
+        # Colores por estado
+        for i, att in enumerate(attendances, 1):
+            if att.status == 'present':
+                style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#dcfce7'))
+                style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#166534'))
+            elif att.status == 'late':
+                style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#fef3c7'))
+                style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#92400e'))
+            elif att.status == 'absent':
+                style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#fee2e2'))
+                style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#991b1b'))
+
+        table.setStyle(style)
+        elements.append(table)
+    else:
+        no_data_style = ParagraphStyle(
+            'NoData',
+            parent=styles['Normal'],
+            fontSize=11,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#666666'),
+            spaceBefore=30
+        )
+        elements.append(Paragraph("No hay registros de asistencia para este estudiante.", no_data_style))
+
+    institution_name = get_institution_name()
+
+    def add_student_header_footer(canvas, doc):
+        """Dibuja header y footer para reporte de estudiante"""
+        canvas.saveState()
+
+        # Header
+        img_size = 1.8*cm
+        header_top = page_height - 1*cm
+
+        if os.path.exists(LOGO_PATH):
+            canvas.drawImage(
+                LOGO_PATH,
+                1.5*cm,
+                header_top - img_size,
+                width=img_size,
+                height=img_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        if os.path.exists(ESCUDO_PATH):
+            canvas.drawImage(
+                ESCUDO_PATH,
+                page_width - 1.5*cm - img_size,
+                header_top - img_size,
+                width=img_size,
+                height=img_size,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        center_x = page_width / 2
+        canvas.setFont('Helvetica-Bold', 11)
+        canvas.setFillColor(colors.HexColor('#1e3a5f'))
+        canvas.drawCentredString(center_x, header_top - 0.5*cm, "INSTITUCIÓN EDUCATIVA SECUNDARIA")
+        canvas.drawCentredString(center_x, header_top - 1*cm, institution_name.upper())
+
+        canvas.setFont('Helvetica-Bold', 10)
+        canvas.setFillColor(colors.black)
+        canvas.drawCentredString(center_x, header_top - 1.7*cm, "REPORTE DE ASISTENCIA - ESTUDIANTE")
+
+        # Info del estudiante
+        canvas.setFont('Helvetica', 9)
+        canvas.drawCentredString(center_x, header_top - 2.3*cm, f"Estudiante: {student.full_name}")
+        canvas.drawCentredString(center_x, header_top - 2.8*cm, f"DNI: {student.dni} | Grado: {student.grade}° - Sección: {student.section}")
+
+        canvas.setStrokeColor(colors.HexColor('#1e40af'))
+        canvas.setLineWidth(1.5)
+        canvas.line(1.5*cm, header_top - 3.3*cm, page_width - 1.5*cm, header_top - 3.3*cm)
+
+        # Footer
+        canvas.setStrokeColor(colors.HexColor('#1e40af'))
+        canvas.setLineWidth(1)
+        canvas.line(1.5*cm, 1.5*cm, page_width - 1.5*cm, 1.5*cm)
+
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColor(colors.HexColor('#666666'))
+        canvas.drawString(1.5*cm, 1*cm, "Sistema de Asistencia - Django + React")
+
+        gen_text = f"Generado: {timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')}"
+        canvas.drawCentredString(page_width / 2, 1*cm, gen_text)
+
+        page_num = f"Página {doc.page}"
+        canvas.drawRightString(page_width - 1.5*cm, 1*cm, page_num)
+
+        canvas.restoreState()
+
+    doc.build(elements, onFirstPage=add_student_header_footer, onLaterPages=add_student_header_footer)
+    buffer.seek(0)
+
+    return buffer
+
+
+def generate_nomina_oficial_excel():
+    """
+    Genera Excel con nómina oficial de todos los estudiantes.
+    Cada hoja corresponde a un grado y sección existente.
+    """
+    wb = Workbook()
+    # Eliminar la hoja por defecto
+    wb.remove(wb.active)
+
+    # Estilos
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1e40af", end_color="1e40af", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    title_font = Font(bold=True, size=14)
+    subtitle_font = Font(bold=True, size=12)
+
+    # Obtener todos los estudiantes activos ordenados
+    students = Student.objects.filter(is_active=True).order_by(
+        'grade', 'section', 'paternal_surname', 'maternal_surname'
+    )
+
+    # Agrupar por grado y sección
+    grades_sections = {}
+    for student in students:
+        key = f"{student.grade}_{student.section}"
+        if key not in grades_sections:
+            grades_sections[key] = []
+        grades_sections[key].append(student)
+
+    # Crear una hoja por cada grado-sección
+    for key in sorted(grades_sections.keys()):
+        grade, section = key.split('_')
+        sheet_name = f"{grade}° - {section}"
+        ws = wb.create_sheet(title=sheet_name)
+
+        students_list = grades_sections[key]
+        institution = get_institution_name()
+
+        # Título
+        ws.merge_cells('A1:E1')
+        ws['A1'] = institution
+        ws['A1'].font = title_font
+        ws['A1'].alignment = Alignment(horizontal="center")
+
+        ws.merge_cells('A2:E2')
+        ws['A2'] = f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria - Sección {section}"
+        ws['A2'].font = subtitle_font
+        ws['A2'].alignment = Alignment(horizontal="center")
+
+        ws.merge_cells('A3:E3')
+        ws['A3'] = f"Año Académico {datetime.now().year}"
+        ws['A3'].alignment = Alignment(horizontal="center")
+
+        # Headers de la tabla
+        headers = ['N°', 'DNI', 'Apellidos y Nombres', 'Grado', 'Sección']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # Datos de estudiantes
+        for idx, student in enumerate(students_list, 1):
+            row = idx + 5
+            ws.cell(row=row, column=1, value=idx).border = thin_border
+            ws.cell(row=row, column=1).alignment = Alignment(horizontal="center")
+
+            ws.cell(row=row, column=2, value=student.dni).border = thin_border
+            ws.cell(row=row, column=2).alignment = Alignment(horizontal="center")
+
+            ws.cell(row=row, column=3, value=student.full_name).border = thin_border
+
+            ws.cell(row=row, column=4, value=student.grade).border = thin_border
+            ws.cell(row=row, column=4).alignment = Alignment(horizontal="center")
+
+            ws.cell(row=row, column=5, value=student.section).border = thin_border
+            ws.cell(row=row, column=5).alignment = Alignment(horizontal="center")
+
+        # Total al final
+        total_row = len(students_list) + 6
+        ws.merge_cells(f'A{total_row}:E{total_row}')
+        ws[f'A{total_row}'] = f"Total de estudiantes: {len(students_list)}"
+        ws[f'A{total_row}'].font = Font(bold=True)
+        ws[f'A{total_row}'].alignment = Alignment(horizontal="center")
+
+        # Ajustar anchos de columna
+        ws.column_dimensions['A'].width = 6
+        ws.column_dimensions['B'].width = 12
+        ws.column_dimensions['C'].width = 40
+        ws.column_dimensions['D'].width = 10
+        ws.column_dimensions['E'].width = 10
+
+    # Crear hoja de resumen al inicio
+    summary_ws = wb.create_sheet(title="Resumen", index=0)
+    institution = get_institution_name()
+
+    summary_ws.merge_cells('A1:C1')
+    summary_ws['A1'] = institution
+    summary_ws['A1'].font = title_font
+    summary_ws['A1'].alignment = Alignment(horizontal="center")
+
+    summary_ws.merge_cells('A2:C2')
+    summary_ws['A2'] = "RESUMEN DE NÓMINA OFICIAL"
+    summary_ws['A2'].font = subtitle_font
+    summary_ws['A2'].alignment = Alignment(horizontal="center")
+
+    summary_ws.merge_cells('A3:C3')
+    summary_ws['A3'] = f"Año Académico {datetime.now().year}"
+    summary_ws['A3'].alignment = Alignment(horizontal="center")
+
+    # Headers del resumen
+    summary_headers = ['Grado', 'Sección', 'Total Estudiantes']
+    for col, header in enumerate(summary_headers, 1):
+        cell = summary_ws.cell(row=5, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+
+    # Datos del resumen
+    row_num = 6
+    total_general = 0
+    for key in sorted(grades_sections.keys()):
+        grade, section = key.split('_')
+        count = len(grades_sections[key])
+        total_general += count
+
+        summary_ws.cell(row=row_num, column=1, value=f"{grade}°").border = thin_border
+        summary_ws.cell(row=row_num, column=1).alignment = Alignment(horizontal="center")
+
+        summary_ws.cell(row=row_num, column=2, value=section).border = thin_border
+        summary_ws.cell(row=row_num, column=2).alignment = Alignment(horizontal="center")
+
+        summary_ws.cell(row=row_num, column=3, value=count).border = thin_border
+        summary_ws.cell(row=row_num, column=3).alignment = Alignment(horizontal="center")
+
+        row_num += 1
+
+    # Total general
+    summary_ws.merge_cells(f'A{row_num}:B{row_num}')
+    summary_ws[f'A{row_num}'] = "TOTAL GENERAL"
+    summary_ws[f'A{row_num}'].font = Font(bold=True)
+    summary_ws[f'A{row_num}'].alignment = Alignment(horizontal="center")
+    summary_ws[f'A{row_num}'].border = thin_border
+    summary_ws[f'B{row_num}'].border = thin_border
+
+    summary_ws.cell(row=row_num, column=3, value=total_general).border = thin_border
+    summary_ws.cell(row=row_num, column=3).font = Font(bold=True)
+    summary_ws.cell(row=row_num, column=3).alignment = Alignment(horizontal="center")
+
+    # Ajustar anchos
+    summary_ws.column_dimensions['A'].width = 15
+    summary_ws.column_dimensions['B'].width = 15
+    summary_ws.column_dimensions['C'].width = 20
+
+    # Guardar en buffer
+    buffer = BytesIO()
+    wb.save(buffer)
     buffer.seek(0)
 
     return buffer

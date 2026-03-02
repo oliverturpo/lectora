@@ -30,6 +30,10 @@ class DailySessionSerializer(serializers.ModelSerializer):
 class AttendanceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.full_name', read_only=True)
     student_dni = serializers.CharField(source='student.dni', read_only=True)
+    student_grade = serializers.CharField(source='student.grade', read_only=True)
+    student_section = serializers.CharField(source='student.section', read_only=True)
+    student_photo = serializers.SerializerMethodField()
+    # Mantener compatibilidad con código existente
     grade = serializers.CharField(source='student.grade', read_only=True)
     section = serializers.CharField(source='student.section', read_only=True)
 
@@ -40,6 +44,9 @@ class AttendanceSerializer(serializers.ModelSerializer):
             'student',
             'student_name',
             'student_dni',
+            'student_grade',
+            'student_section',
+            'student_photo',
             'grade',
             'section',
             'session',
@@ -51,6 +58,11 @@ class AttendanceSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+
+    def get_student_photo(self, obj):
+        if obj.student.photo:
+            return obj.student.photo.url
+        return None
 
 
 class AttendanceStatsSerializer(serializers.Serializer):

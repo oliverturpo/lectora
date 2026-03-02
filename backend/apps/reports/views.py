@@ -3,10 +3,20 @@ Views para reportes
 """
 from datetime import datetime
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
-from .services import generate_excel_report, generate_pdf_report, get_attendance_data
+from django.conf import settings
+from .services import (
+    generate_excel_report,
+    generate_pdf_report,
+    get_attendance_data,
+    generate_nomina_by_grade_pdf,
+    generate_nomina_oficial_pdf,
+    generate_nomina_oficial_excel,
+    generate_student_attendance_pdf
+)
 
 
 class DailyReportView(APIView):
@@ -121,3 +131,77 @@ class ExportPdfView(APIView):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
         return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_nomina_by_grade_pdf(request):
+    """
+    Exporta nómina de estudiantes por grado a PDF
+    """
+    grade = request.GET.get('grade')
+    section = request.GET.get('section', None)
+
+    if not grade:
+        return Response({'error': 'Parámetro grade es requerido'}, status=400)
+
+    buffer = generate_nomina_by_grade_pdf(grade, section)
+
+    section_part = f"_{section}" if section else "_todas"
+    filename = f'nomina_{grade}{section_part}.pdf'
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_nomina_oficial_pdf(request):
+    """
+    Exporta nómina oficial completa del colegio a PDF
+    """
+    buffer = generate_nomina_oficial_pdf()
+
+    institution = settings.INSTITUTION_CONFIG.get('NAME', 'IES').replace(' ', '_')
+    filename = f'nomina_oficial_{institution}.pdf'
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_student_attendance_pdf(request, student_id):
+    """
+    Exporta el historial de asistencia de un estudiante a PDF
+    """
+    buffer = generate_student_attendance_pdf(student_id)
+
+    if not buffer:
+        return Response({'error': 'Estudiante no encontrado'}, status=404)
+
+    filename = f'asistencia_estudiante_{student_id}.pdf'
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_nomina_oficial_excel(request):
+    """
+    Exporta nómina oficial completa del colegio a Excel.
+    Cada hoja corresponde a un grado y sección existente.
+    """
+    buffer = generate_nomina_oficial_excel()
+
+    institution = settings.INSTITUTION_CONFIG.get('NAME', 'IES').replace(' ', '_')
+    year = datetime.now().year
+    filename = f'nomina_oficial_{institution}_{year}.xlsx'
+
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response

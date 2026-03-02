@@ -16,7 +16,8 @@ def configure_jobs():
     """
     Configura las tareas programadas basándose en la configuración del sistema.
     """
-    from .tasks import auto_open_session, auto_close_session, get_scheduled_times
+    from .tasks import auto_open_session, auto_close_session, close_expired_sessions, get_scheduled_times
+    from apscheduler.triggers.interval import IntervalTrigger
 
     # Eliminar jobs existentes para reconfigurar
     scheduler.remove_all_jobs()
@@ -50,12 +51,22 @@ def configure_jobs():
             replace_existing=True
         )
 
+        # Tarea periódica para cerrar sesiones vencidas (cada 5 minutos)
+        scheduler.add_job(
+            close_expired_sessions,
+            trigger=IntervalTrigger(minutes=5),
+            id='close_expired_sessions',
+            name='Cerrar sesiones vencidas',
+            replace_existing=True
+        )
+
         open_time = f"{times['open'][0]:02d}:{times['open'][1]:02d}"
         close_time = f"{times['close'][0]:02d}:{times['close'][1]:02d}"
 
         print(f"[SCHEDULER] Tareas programadas:")
         print(f"  - Apertura automática: {open_time}")
         print(f"  - Cierre automático: {close_time}")
+        print(f"  - Verificación de sesiones vencidas: cada 5 minutos")
 
     except Exception as e:
         logger.error(f"Error configurando scheduler: {e}")
@@ -93,6 +104,16 @@ def start():
         scheduler.start()
         scheduler_started = True
         print("[SCHEDULER] Scheduler iniciado correctamente")
+
+        # Al iniciar: cerrar sesiones vencidas y abrir sesión si corresponde
+        from .tasks import close_expired_sessions, open_pending_session
+
+        # Primero cerrar sesiones vencidas (de días anteriores o de hoy si ya pasó la hora)
+        close_expired_sessions()
+
+        # Luego abrir sesión de hoy si estamos en horario y no existe
+        open_pending_session()
+
     except Exception as e:
         logger.error(f"Error iniciando scheduler: {e}")
         print(f"[SCHEDULER] Error al iniciar: {e}")

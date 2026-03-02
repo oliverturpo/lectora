@@ -3,6 +3,7 @@ Utilidades para el módulo de asistencia
 """
 import json
 from datetime import datetime
+from django.conf import settings
 
 
 # Configuración por defecto
@@ -11,7 +12,7 @@ DEFAULT_CONFIG = {
     'punctuality_limit': '07:45',
     'close_time': '08:00',
     'working_days': ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-    'institution_name': 'IES Tupac Amaru',
+    'institution_name': '',
 }
 
 
@@ -32,6 +33,10 @@ def get_system_config():
                 config[key] = db_config.config_value
         except SystemConfig.DoesNotExist:
             config[key] = default_value
+
+    # Si institution_name está vacío, usar el valor de settings como fallback
+    if not config.get('institution_name'):
+        config['institution_name'] = settings.INSTITUTION_CONFIG.get('NAME', 'IES')
 
     return config
 

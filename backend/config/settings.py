@@ -1,5 +1,5 @@
 """
-Django settings for Sistema de Asistencia IES Túpac Amaru
+Django settings for Sistema de Asistencia IES Martin Chambi
 """
 from pathlib import Path
 from datetime import timedelta
@@ -168,10 +168,15 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000'
-).split(',')
+# Si CORS_ALLOW_ALL=true, permite cualquier origen (útil para red local)
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL', default=False, cast=bool)
+
+if not CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOWED_ORIGINS = config(
+        'CORS_ALLOWED_ORIGINS',
+        default='http://localhost:3000,http://127.0.0.1:3000'
+    ).split(',')
+
 CORS_ALLOW_CREDENTIALS = True
 
 # Sistema de Asistencia - Configuraciones específicas
@@ -183,8 +188,8 @@ ATTENDANCE_CONFIG = {
 }
 
 INSTITUTION_CONFIG = {
-    'NAME': config('INSTITUTION_NAME', default='IES Túpac Amaru'),
-    'WEBSITE': config('INSTITUTION_WEBSITE', default='www.iestupacamaru.edu.pe'),
+    'NAME': config('INSTITUTION_NAME', default='IES Martin Chambi'),
+    'WEBSITE': config('INSTITUTION_WEBSITE', default='www.iesmartinchambi.edu.pe'),
 }
 
 # Logging configuration

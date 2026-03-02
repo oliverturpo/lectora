@@ -1,7 +1,7 @@
 import json
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils import timezone
@@ -88,9 +88,98 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Attendance.objects.all()
         session_id = self.request.query_params.get('session')
+        status_filter = self.request.query_params.get('status')
+
         if session_id:
             queryset = queryset.filter(session_id=session_id)
-        return queryset.select_related('student', 'session')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        return queryset.select_related('student', 'session').order_by('student__paternal_surname', 'student__maternal_surname')
+
+    @action(detail=True, methods=['patch'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        """
+        Actualiza el estado de una asistencia.
+        - Auxiliar: solo puede cambiar TARDANZA -> PRESENTE (del día actual)
+        - Director: puede cambiar cualquier estado, cualquier día
+        """
+        attendance = self.get_object()
+        new_status = request.data.get('status')
+        user = request.user
+
+        if not new_status:
+            return Response(
+                {'error': 'Se requiere el campo status'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if new_status not in ['present', 'late', 'absent']:
+            return Response(
+                {'error': 'Estado inválido. Use: present, late, absent'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validar que la sesión sea del día actual para auxiliares
+        today = timezone.localdate()
+        is_today = attendance.session.date == today
+
+        # Verificar permisos según rol
+        is_director = user.role == 'director'
+        current_status = attendance.status
+
+        # Si es el mismo estado, no hacer nada
+        if current_status == new_status:
+            return Response(
+                {'error': 'El estado ya es el seleccionado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not is_director:
+            # Auxiliar: solo TARDANZA -> PRESENTE del día actual
+            if not is_today:
+                return Response(
+                    {'error': 'Solo puede corregir asistencias del día actual'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if current_status != 'late' or new_status != 'present':
+                return Response(
+                    {'error': 'Como auxiliar solo puede cambiar TARDANZA a PRESENTE'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        # Director puede hacer cualquier cambio - no hay restricciones adicionales
+
+        # Actualizar estado
+        old_status = attendance.status
+        attendance.status = new_status
+        attendance.save()
+
+        # Actualizar contadores de la sesión
+        session = attendance.session
+
+        # Decrementar contador anterior
+        if old_status == 'present':
+            session.total_present = max(0, session.total_present - 1)
+        elif old_status == 'late':
+            session.total_late = max(0, session.total_late - 1)
+        elif old_status == 'absent':
+            session.total_absent = max(0, session.total_absent - 1)
+
+        # Incrementar contador nuevo
+        if new_status == 'present':
+            session.total_present += 1
+        elif new_status == 'late':
+            session.total_late += 1
+        elif new_status == 'absent':
+            session.total_absent += 1
+
+        session.save()
+
+        return Response({
+            'message': f'Estado actualizado de {old_status} a {new_status}',
+            'attendance': AttendanceSerializer(attendance).data
+        })
 
 
 @api_view(['GET'])
@@ -126,6 +215,15 @@ def today_stats(request):
         'late': late_count,
         'absent': absent_count
     })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # Endpoint público - sin autenticación
+def public_institution_name(request):
+    """Obtener nombre de la institución (público, sin autenticación)"""
+    from .utils import get_system_config
+    config = get_system_config()
+    return Response({'institution_name': config.get('institution_name', '')})
 
 
 class SystemConfigView(APIView):

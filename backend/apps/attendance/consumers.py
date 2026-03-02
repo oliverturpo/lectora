@@ -91,6 +91,16 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
         """Registra la asistencia en la base de datos"""
         from apps.students.models import Student
         from apps.attendance.models import DailySession, Attendance
+        from .utils import get_system_config
+
+        # Verificar si hoy es día laborable
+        config = get_system_config()
+        working_days = config.get('working_days', ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
+        day_names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        today_name = day_names[timezone.localdate().weekday()]
+
+        if today_name not in working_days:
+            return {'success': False, 'message': f'Hoy no es día laborable. No se registra asistencia.'}
 
         # Buscar estudiante
         try:
