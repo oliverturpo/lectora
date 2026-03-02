@@ -1,256 +1,165 @@
-# Sistema de Asistencia - IES Túpac Amaru
+# Sistema de Control de Asistencia Escolar
 
-Sistema de control de asistencia escolar mediante escaneo de códigos de barras con sincronización en tiempo real.
-
-## 📋 Descripción
-
-Sistema para registrar asistencia diaria de ~200 estudiantes (1ro a 5to secundaria) mediante escaneo de carnets con código de barras. Funciona con múltiples laptops sincronizadas en tiempo real vía WebSockets.
-
-### Características Principales
-
-- ✅ Registro masivo de estudiantes con fotos
-- ✅ Generación automática de carnets con código de barras
-- ✅ Escaneo de asistencia en tiempo real
-- ✅ Sincronización entre 2-3 laptops (WebSockets)
-- ✅ Cierre automático del sistema
-- ✅ Generación automática de reportes (Excel/PDF)
-- ✅ Estadísticas en tiempo real
-
-## 🔧 Stack Tecnológico
-
-### Backend
-- **Framework:** Django 5.0
-- **API REST:** Django REST Framework
-- **WebSockets:** Django Channels
-- **Base de datos:** PostgreSQL
-- **Scheduler:** APScheduler
-
-### Frontend
-- **Framework:** React 18
-- **Estado:** Context API
-- **WebSockets:** Native WebSocket API
-- **HTTP Client:** Axios
-- **UI:** React Toastify
-
-## 📁 Estructura del Proyecto
-
-```
-asistencia-tupac/
-├── backend/                    # Django Backend
-│   ├── apps/
-│   │   ├── students/          # Gestión de estudiantes
-│   │   ├── attendance/        # Asistencia y WebSockets
-│   │   ├── users/             # Autenticación
-│   │   └── reports/           # Generación de reportes
-│   ├── config/                # Configuración Django
-│   ├── core/                  # Utilidades compartidas
-│   ├── media/                 # Archivos subidos
-│   ├── scripts/               # Scripts de mantenimiento
-│   └── requirements.txt
-│
-├── frontend/                   # React Frontend
-│   ├── public/
-│   ├── src/
-│   │   ├── api/               # Configuración de Axios
-│   │   ├── components/        # Componentes React
-│   │   ├── contexts/          # Context API
-│   │   ├── hooks/             # Custom hooks
-│   │   ├── pages/             # Páginas principales
-│   │   └── utils/             # Utilidades
-│   └── package.json
-│
-└── SISTEMA_ASISTENCIA_IES.md  # Documentación completa
-```
-
-## 🚀 Instalación y Configuración
-
-### Requisitos Previos
-
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 14+
-- Git
-
-### 1. Clonar el repositorio
-
-```bash
-git clone <repository-url>
-cd asistencia-tupac
-```
-
-### 2. Configurar Backend (Django)
-
-```bash
-# Navegar a la carpeta backend
-cd backend
-
-# Crear entorno virtual
-python -m venv venv
-
-# En Linux/Mac:
-source venv/Scripts/activate
-
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Copiar archivo de ejemplo de variables de entorno
-cp .env.example .env
-
-# Editar .env con tus configuraciones
-nano .env  # o el editor de tu preferencia
-```
-
-### 3. Configurar PostgreSQL
-
-```bash
-# Conectar a PostgreSQL
-sudo -u postgres psql
-
-# Crear base de datos y usuario
-CREATE DATABASE asistencia_db;
-CREATE USER asistencia_user WITH PASSWORD 'tu_password';
-ALTER ROLE asistencia_user SET client_encoding TO 'utf8';
-ALTER ROLE asistencia_user SET default_transaction_isolation TO 'read committed';
-ALTER ROLE asistencia_user SET timezone TO 'America/Lima';
-GRANT ALL PRIVILEGES ON DATABASE asistencia_db TO asistencia_user;
-\q
-```
-
-### 4. Ejecutar Migraciones
-
-```bash
-# Desde backend/
-python manage.py makemigrations
-python manage.py migrate
-
-# Crear superusuario
-python manage.py createsuperuser
-```
-
-### 5. Configurar Frontend (React)
-
-```bash
-# Navegar a la carpeta frontend
-cd ../frontend
-
-# Instalar dependencias
-npm install
-
-# Copiar archivo de ejemplo de variables de entorno
-cp .env.example .env
-
-# Editar .env con tus configuraciones
-nano .env
-```
-
-### 6. Iniciar los Servidores
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-source venv/bin/activate  # o venv\Scripts\activate en Windows
-python manage.py runserver
-```
-
-**Terminal 2 - Frontend:**
-```bash
-cd frontend
-npm start
-```
-
-Ahora puedes acceder a:
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:8000/api
-- **Admin Django:** http://localhost:8000/admin
-
-## 👥 Usuarios del Sistema
-
-### Director (Administrador)
-- Gestionar estudiantes
-- Generar carnets
-- Configurar horarios
-- Ver estadísticas completas
-- Descargar reportes
-
-### Auxiliar (Operador)
-- Escanear códigos de barras
-- Ver asistencias del día
-- Búsqueda manual de estudiantes
-
-## 📦 Scripts Útiles
-
-### Backup de Base de Datos
-
-```bash
-# Ejecutar backup manual
-./backend/scripts/backup.sh
-
-# Configurar backup automático (crontab)
-crontab -e
-# Agregar:
-0 23 * * * /path/to/backend/scripts/backup.sh
-```
-
-### Limpiar Datos Antiguos
-
-```bash
-cd backend
-python manage.py cleanup_old_data
-```
-
-## 🔒 Seguridad
-
-- Contraseñas hasheadas con bcrypt
-- JWT para autenticación
-- CORS configurado
-- Input sanitization
-- Rate limiting
-
-## 📚 Documentación
-
-Para documentación completa del sistema, ver:
-- [SISTEMA_ASISTENCIA_IES.md](./SISTEMA_ASISTENCIA_IES.md) - Especificaciones técnicas completas
-- [backend/README.md](./backend/README.md) - Documentación del backend
-- [frontend/README.md](./frontend/README.md) - Documentación del frontend
-
-## 🐛 Solución de Problemas
-
-### Error de conexión a PostgreSQL
-```bash
-# Verificar que PostgreSQL esté corriendo
-sudo systemctl status postgresql
-
-# Reiniciar servicio
-sudo systemctl restart postgresql
-```
-
-### Error de WebSocket
-- Verificar que CORS_ALLOWED_ORIGINS incluya la URL del frontend
-- Verificar configuración de Channels en settings.py
-
-### Error al generar carnets
-- Verificar que Pillow esté instalado correctamente
-- Verificar permisos de escritura en carpeta media/
-
-## 🤝 Contribuir
-
-1. Fork el proyecto
-2. Crea tu rama (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT.
-
-## 📧 Contacto
-
-Para soporte técnico o consultas, contactar al equipo de desarrollo.
+> Control de asistencia automatizado para educacion secundaria con escaneo de codigos de barras
 
 ---
 
-**Versión:** 1.0  
-**Fecha:** Enero 2026  
-**Institución:** IES Túpac Amaru
+## 1. ¿Que hace el sistema?
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   ESTUDIANTE          AUXILIAR              DIRECTOR            │
+│       │                  │                     │                │
+│       ▼                  ▼                     ▼                │
+│   ┌───────┐         ┌─────────┐          ┌─────────┐           │
+│   │CARNET │ ──────► │ ESCANER │ ──────►  │REPORTES │           │
+│   │BARRAS │         │   APP   │          │  PDF    │           │
+│   └───────┘         └─────────┘          │  EXCEL  │           │
+│                          │               └─────────┘           │
+│                          ▼                                      │
+│                    ┌───────────┐                               │
+│                    │ REGISTRO  │                               │
+│                    │ PRESENTE  │                               │
+│                    │ TARDANZA  │                               │
+│                    │  FALTA    │                               │
+│                    └───────────┘                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**En resumen:**
+- El estudiante muestra su carnet con codigo de barras
+- El auxiliar escanea con la camara del celular o laptop
+- El sistema registra automaticamente si llego a tiempo o tarde
+- El director descarga reportes cuando los necesite
+
+---
+
+## 2. ¿Como funciona el dia a dia?
+
+```
+    HORARIO TIPICO
+
+    07:00 ─┬─────────────────────────────────────────────
+           │  Sistema se abre automaticamente
+    07:30 ─┤
+           │  ✓ PRESENTE - Estudiantes puntuales
+    08:00 ─┤
+           │  ⏱ TARDANZA - Estudiantes que llegan tarde
+    12:00 ─┤
+           │  ✗ FALTA - Sistema cierra y marca ausentes
+    12:01 ─┴─────────────────────────────────────────────
+```
+
+**El sistema hace todo automatico:**
+- Abre la sesion a la hora configurada
+- Determina si es PRESENTE o TARDANZA segun la hora
+- Cierra y marca las FALTAS automaticamente
+- Guarda todo para los reportes
+
+---
+
+## 3. ¿Quien puede hacer que?
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                                                                │
+│                         DIRECTOR                               │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │  ✓ Todo lo del auxiliar                                  │ │
+│  │  ✓ Agregar/editar estudiantes                            │ │
+│  │  ✓ Descargar reportes PDF y Excel                        │ │
+│  │  ✓ Corregir asistencias de cualquier dia                 │ │
+│  │  ✓ Configurar horarios                                   │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+│                         AUXILIAR                               │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │  ✓ Escanear asistencia                                   │ │
+│  │  ✓ Corregir tardanzas a presente (solo hoy)              │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. ¿Que reportes genera?
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│                 │    │                 │    │                 │
+│  REPORTE DIARIO │    │  REPORTE POR    │    │    NOMINAS      │
+│                 │    │     GRADO       │    │                 │
+│  - Fecha        │    │                 │    │  - Por grado    │
+│  - Presentes    │    │  - 1ro A, B, C  │    │  - Oficiales    │
+│  - Tardanzas    │    │  - 2do A, B, C  │    │  - Con fotos    │
+│  - Faltas       │    │  - etc...       │    │                 │
+│                 │    │                 │    │                 │
+│   📄 PDF        │    │   📊 EXCEL      │    │   📄 PDF/EXCEL  │
+│                 │    │                 │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+---
+
+## 5. ¿Como se conectan los dispositivos?
+
+```
+                    ┌─────────────────┐
+                    │     ROUTER      │
+                    │   (WiFi Local)  │
+                    └────────┬────────┘
+                             │
+           ┌─────────────────┼─────────────────┐
+           │                 │                 │
+           ▼                 ▼                 ▼
+    ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+    │   LAPTOP    │   │  CELULAR 1  │   │  CELULAR 2  │
+    │  SERVIDOR   │   │  AUXILIAR   │   │  AUXILIAR   │
+    │             │   │             │   │             │
+    │ - Backend   │   │ - Escanea   │   │ - Escanea   │
+    │ - Frontend  │   │ - Ve lista  │   │ - Ve lista  │
+    │ - Base datos│   │             │   │             │
+    └─────────────┘   └─────────────┘   └─────────────┘
+
+    ✓ NO necesita internet
+    ✓ Todos ven los cambios al instante
+    ✓ Funciona con cualquier router WiFi
+```
+
+---
+
+## Inicio Rapido
+
+**Para el auxiliar:**
+1. Conectarse al WiFi del colegio
+2. Abrir el navegador
+3. Ir a la direccion del sistema
+4. Iniciar sesion
+5. Escanear carnets
+
+**Para el director:**
+1. Mismo proceso que el auxiliar
+2. Acceso adicional a: Estudiantes, Reportes, Configuracion
+
+---
+
+## Configuracion de Horarios
+
+El director puede cambiar:
+
+| Configuracion | Ejemplo | Descripcion |
+|---------------|---------|-------------|
+| Hora apertura | 07:00 | Cuando empieza a registrar |
+| Limite puntualidad | 08:00 | Hasta que hora es "presente" |
+| Hora cierre | 12:00 | Cuando cierra y marca faltas |
+| Dias laborables | Lun-Vie | Que dias funciona |
+
+---
+
+## Soporte
+
+Sistema desarrollado para el control eficiente de asistencia escolar.
+Funciona sin conexion a internet, solo necesita red WiFi local.
