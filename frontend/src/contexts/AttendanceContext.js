@@ -54,7 +54,8 @@ export function AttendanceProvider({ children }) {
         break;
 
       default:
-        console.log('Mensaje WS no manejado:', data);
+        // Mensaje WS no manejado - ignorar
+        break;
     }
   }, []);
 

@@ -1,22 +1,37 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Barcode from 'react-barcode';
 import html2canvas from 'html2canvas';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { getPhotoUrl } from '../../utils/photoUrl';
+import { configAPI } from '../../api/endpoints';
 
-// Dimensiones de carnet estandar (85.6mm x 53.98mm) - escalado para pantalla
-const CARD_WIDTH = 340;
-const CARD_HEIGHT = 214;
+// Dimensiones DNI Peruano (85.4mm x 54mm) - escalado para pantalla
+const CARD_WIDTH = 339;
+const CARD_HEIGHT = 215;
 
 export default function StudentIDCard({ student, onClose }) {
   const frontRef = useRef();
   const backRef = useRef();
   const [downloading, setDownloading] = useState(false);
+  const [institutionName, setInstitutionName] = useState('');
 
   const fullName = `${student.paternal_surname} ${student.maternal_surname}, ${student.first_name}`;
   const gradeText = `${student.grade} Secundaria`;
   const currentYear = new Date().getFullYear();
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await configAPI.get();
+        setInstitutionName(response.data.institution_name || 'IES');
+      } catch (error) {
+        console.error('Error cargando configuración:', error);
+        setInstitutionName('IES');
+      }
+    };
+    loadConfig();
+  }, []);
 
   // Funcion para convertir elemento a blob PNG
   const elementToBlob = async (element) => {
@@ -137,16 +152,17 @@ export default function StudentIDCard({ student, onClose }) {
       letterSpacing: '2px',
     },
 
-    // ========== ANVERSO ==========
+    // ========== ANVERSO (Optimizado para impresión) ==========
     cardFront: {
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
-      background: 'linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 50%, #1e3a5f 100%)',
+      background: '#ffffff',
       borderRadius: '14px',
       position: 'relative',
       overflow: 'hidden',
-      boxShadow: '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)',
+      boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      border: '2px solid #1e3a5f',
     },
     // Header con escudos
     frontHeader: {
@@ -154,25 +170,24 @@ export default function StudentIDCard({ student, onClose }) {
       alignItems: 'center',
       justifyContent: 'space-between',
       padding: '10px 14px 8px 14px',
-      borderBottom: '1px solid rgba(255,255,255,0.15)',
-      background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)',
+      borderBottom: '2px solid #1e3a5f',
+      background: '#f8fafc',
     },
     headerEmblem: {
       width: '38px',
       height: '38px',
       objectFit: 'contain',
-      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
     },
     headerEmblemPlaceholder: {
       width: '38px',
       height: '38px',
-      backgroundColor: 'rgba(255,255,255,0.1)',
+      backgroundColor: '#e2e8f0',
       borderRadius: '50%',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: '10px',
-      color: 'rgba(255,255,255,0.5)',
+      color: '#64748b',
     },
     headerCenter: {
       textAlign: 'center',
@@ -182,10 +197,9 @@ export default function StudentIDCard({ student, onClose }) {
     institutionName: {
       fontSize: '11px',
       fontWeight: 800,
-      color: 'white',
+      color: '#1e3a5f',
       letterSpacing: '1px',
       margin: 0,
-      textShadow: '0 1px 2px rgba(0,0,0,0.3)',
     },
     institutionSubtitle: {
       fontSize: '7px',
@@ -204,11 +218,11 @@ export default function StudentIDCard({ student, onClose }) {
     photoContainer: {
       width: '82px',
       height: '100px',
-      backgroundColor: 'white',
+      backgroundColor: '#f1f5f9',
       borderRadius: '6px',
       overflow: 'hidden',
       flexShrink: 0,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 0 0 2px rgba(196,30,58,0.3)',
+      border: '2px solid #1e3a5f',
     },
     photo: {
       width: '100%',
@@ -221,8 +235,8 @@ export default function StudentIDCard({ student, onClose }) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#e8e8e8',
-      color: '#999',
+      backgroundColor: '#e2e8f0',
+      color: '#64748b',
       fontSize: '2.5rem',
     },
     studentInfo: {
@@ -234,10 +248,9 @@ export default function StudentIDCard({ student, onClose }) {
     studentName: {
       fontSize: '13px',
       fontWeight: 700,
-      color: 'white',
+      color: '#1e293b',
       marginBottom: '10px',
       lineHeight: 1.3,
-      textShadow: '0 1px 2px rgba(0,0,0,0.3)',
     },
     infoRow: {
       display: 'flex',
@@ -246,13 +259,13 @@ export default function StudentIDCard({ student, onClose }) {
     },
     infoLabel: {
       fontSize: '8px',
-      color: 'rgba(255,255,255,0.6)',
+      color: '#64748b',
       width: '45px',
       fontWeight: 600,
     },
     infoValue: {
       fontSize: '10px',
-      color: 'white',
+      color: '#1e293b',
       fontWeight: 600,
     },
     // Footer del anverso
@@ -265,11 +278,12 @@ export default function StudentIDCard({ student, onClose }) {
       alignItems: 'center',
       justifyContent: 'space-between',
       padding: '6px 14px',
-      background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 100%)',
+      borderTop: '1px solid #e2e8f0',
+      background: '#f8fafc',
     },
     yearBadge: {
       fontSize: '9px',
-      color: 'rgba(255,255,255,0.7)',
+      color: '#1e3a5f',
       fontWeight: 600,
     },
     cardTypeBadge: {
@@ -283,45 +297,24 @@ export default function StudentIDCard({ student, onClose }) {
       textTransform: 'uppercase',
     },
 
-    // ========== REVERSO ==========
+    // ========== REVERSO (Fondo blanco para impresión) ==========
     cardBack: {
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
-      background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+      background: '#ffffff',
       borderRadius: '14px',
       position: 'relative',
       overflow: 'hidden',
-      boxShadow: '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.1)',
+      boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      border: '2px solid #1e3a5f',
     },
-    // Marca de agua del escudo
+    // Marca de agua eliminada para mejor impresión
     watermark: {
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: '160px',
-      height: '160px',
-      opacity: 0.08,
-      objectFit: 'contain',
-      pointerEvents: 'none',
+      display: 'none',
     },
     watermarkPlaceholder: {
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: '140px',
-      height: '140px',
-      border: '3px dashed rgba(0,0,0,0.08)',
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: 'rgba(0,0,0,0.1)',
-      fontSize: '11px',
-      textAlign: 'center',
-      fontWeight: 500,
+      display: 'none',
     },
     // Header del reverso
     backHeader: {
@@ -329,7 +322,7 @@ export default function StudentIDCard({ student, onClose }) {
       zIndex: 1,
       textAlign: 'center',
       padding: '12px 14px 8px',
-      borderBottom: '1px solid rgba(0,0,0,0.1)',
+      borderBottom: '2px solid #1e3a5f',
     },
     backHeaderRow: {
       display: 'flex',
@@ -341,7 +334,6 @@ export default function StudentIDCard({ student, onClose }) {
       width: '24px',
       height: '24px',
       objectFit: 'contain',
-      opacity: 0.7,
     },
     backTitle: {
       fontSize: '9px',
@@ -367,7 +359,7 @@ export default function StudentIDCard({ student, onClose }) {
     dniNumber: {
       fontSize: '14px',
       fontWeight: 800,
-      color: '#1e3a5f',
+      color: '#1e293b',
       marginTop: '8px',
       letterSpacing: '2px',
     },
@@ -376,8 +368,7 @@ export default function StudentIDCard({ student, onClose }) {
       position: 'relative',
       zIndex: 1,
       padding: '8px 14px 12px',
-      borderTop: '1px solid rgba(0,0,0,0.1)',
-      background: 'linear-gradient(180deg, transparent 0%, rgba(30,58,95,0.05) 100%)',
+      borderTop: '1px solid #e2e8f0',
     },
     footerRow: {
       display: 'flex',
@@ -391,14 +382,14 @@ export default function StudentIDCard({ student, onClose }) {
     },
     footerText: {
       fontSize: '7px',
-      color: '#666',
+      color: '#374151',
       textAlign: 'center',
       margin: 0,
       lineHeight: 1.4,
     },
     footerStrong: {
       fontWeight: 700,
-      color: '#1e3a5f',
+      color: '#1e293b',
     },
 
     // ========== ACCIONES ==========
@@ -486,7 +477,7 @@ export default function StudentIDCard({ student, onClose }) {
 
                 {/* Texto central */}
                 <div style={styles.headerCenter}>
-                  <p style={styles.institutionName}>I.E.S. TUPAC AMARU</p>
+                  <p style={styles.institutionName}>{institutionName.toUpperCase()}</p>
                   <p style={styles.institutionSubtitle}>Carnet Estudiantil</p>
                 </div>
 

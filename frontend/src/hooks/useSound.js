@@ -54,7 +54,7 @@ export function useSound() {
       finalOsc.stop(now + 0.8);
 
     } catch (error) {
-      console.log('Audio not supported');
+      // Audio not supported - silently ignore
     }
   }, [getAudioContext]);
 
@@ -96,7 +96,7 @@ export function useSound() {
       osc2.stop(now + 0.45);
 
     } catch (error) {
-      console.log('Audio not supported');
+      // Audio not supported - silently ignore
     }
   }, [getAudioContext]);
 
@@ -126,7 +126,7 @@ export function useSound() {
       });
 
     } catch (error) {
-      console.log('Audio not supported');
+      // Audio not supported - silently ignore
     }
   }, [getAudioContext]);
 
@@ -153,7 +153,7 @@ export function useSound() {
       oscillator.stop(now + 0.25);
 
     } catch (error) {
-      console.log('Audio not supported');
+      // Audio not supported - silently ignore
     }
   }, [getAudioContext]);
 
@@ -164,5 +164,3 @@ export function useSound() {
     playNotification,
   };
 }
-
-export default useSound;

@@ -4,7 +4,6 @@ WebSocket consumers para asistencia en tiempo real
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-from datetime import datetime, time
 import json
 from .utils import get_attendance_times
 

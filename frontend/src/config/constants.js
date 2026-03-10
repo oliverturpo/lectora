@@ -25,4 +25,4 @@ export const USER_ROLES = {
   auxiliar: 'Auxiliar',
 };
 
-export const INSTITUTION_NAME = process.env.REACT_APP_INSTITUTION_NAME || 'IES Tupac Amaru';
+export const INSTITUTION_NAME = process.env.REACT_APP_INSTITUTION_NAME || 'IES Martin Chambi';

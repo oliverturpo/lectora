@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import DailySession, Attendance
-from apps.students.serializers import StudentSerializer
 
 
 class DailySessionSerializer(serializers.ModelSerializer):

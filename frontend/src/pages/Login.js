@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { INSTITUTION_NAME } from '../config/constants';
+import { configAPI } from '../api/endpoints';
 import { toast } from 'react-toastify';
 
 // Hook para detectar tamaño de pantalla
@@ -223,10 +223,24 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [institutionName, setInstitutionName] = useState('');
   const { isMobile } = useScreenSize();
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Cargar nombre de la institución (endpoint público)
+  useEffect(() => {
+    const loadInstitutionName = async () => {
+      try {
+        const response = await configAPI.getInstitutionName();
+        setInstitutionName(response.data.institution_name || '');
+      } catch (error) {
+        console.error('Error cargando nombre de institución:', error);
+      }
+    };
+    loadInstitutionName();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -593,7 +607,7 @@ export default function Login() {
               textAlign: 'center',
             }}
           >
-            {INSTITUTION_NAME}
+            {institutionName}
           </motion.h1>
 
           <motion.p
@@ -821,7 +835,7 @@ export default function Login() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.6 }}
           >
-            {INSTITUTION_NAME}
+            {institutionName}
           </motion.h1>
 
           <motion.p

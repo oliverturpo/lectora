@@ -2,20 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
-import { INSTITUTION_NAME } from '../../config/constants';
-
-// Hook para detectar tamano de pantalla
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  return isMobile;
-}
+import { configAPI } from '../../api/endpoints';
+import { useIsMobile } from '../../hooks/useScreenSize';
 
 // Iconos
 const Icons = {
@@ -37,6 +25,16 @@ const Icons = {
   reports: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+    </svg>
+  ),
+  avanzado: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+    </svg>
+  ),
+  correcciones: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
     </svg>
   ),
   config: (
@@ -72,7 +70,9 @@ const getIcon = (path) => {
     case '/scanner': return Icons.scanner;
     case '/students': return Icons.students;
     case '/reports': return Icons.reports;
+    case '/avanzado': return Icons.avanzado;
     case '/config': return Icons.config;
+    case '/correcciones': return Icons.correcciones;
     default: return null;
   }
 };
@@ -83,6 +83,20 @@ export default function Navbar() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [institutionName, setInstitutionName] = useState('');
+
+  // Cargar nombre de la institución
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await configAPI.get();
+        setInstitutionName(response.data.institution_name || '');
+      } catch (error) {
+        console.error('Error cargando configuración:', error);
+      }
+    };
+    loadConfig();
+  }, []);
 
   // Cerrar menu al cambiar de ruta
   useEffect(() => {
@@ -115,11 +129,13 @@ export default function Navbar() {
         { path: '/scanner', label: 'Escaner' },
         { path: '/students', label: 'Estudiantes' },
         { path: '/reports', label: 'Reportes' },
+        { path: '/correcciones', label: 'Justificar' },
+        { path: '/avanzado', label: 'Avanzado' },
         { path: '/config', label: 'Config' },
       ]
     : [
-        { path: '/', label: 'Inicio' },
         { path: '/scanner', label: 'Escaner' },
+        { path: '/correcciones', label: 'Corregir' },
       ];
 
   // ==================== ESTILOS ====================
@@ -361,7 +377,7 @@ export default function Navbar() {
               onError={(e) => { e.target.style.display = 'none'; }}
             />
             <span style={styles.brandText}>
-              {isMobile ? 'IESTA' : INSTITUTION_NAME}
+              {isMobile ? (institutionName ? institutionName.split(' ').map(w => w[0]).join('') : 'IES') : institutionName}
             </span>
           </Link>
 

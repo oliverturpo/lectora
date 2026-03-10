@@ -2,26 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { configAPI } from '../api/endpoints';
 import Loading from '../components/common/Loading';
 import { toast } from 'react-toastify';
-
-// Hook para detectar tamaño de pantalla
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  return isMobile;
-}
+import { useIsMobile } from '../hooks/useScreenSize';
 
 const defaultConfig = {
   open_time: '07:30',
   punctuality_limit: '07:45',
   close_time: '08:00',
   working_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-  institution_name: 'IES Tupac Amaru',
+  institution_name: '',
 };
 
 const dayLabels = {
@@ -111,7 +99,7 @@ export default function ConfigPage() {
     },
     card: {
       backgroundColor: 'white',
-      borderRadius: isMobile ? '0.75rem' : '0.75rem',
+      borderRadius: '0.75rem',
       padding: isMobile ? '1rem' : '1.5rem',
       boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
       marginBottom: isMobile ? '1rem' : '1.5rem',

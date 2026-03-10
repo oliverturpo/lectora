@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { configAPI } from './api/endpoints';
 import Navbar from './components/common/Navbar';
 import Loading from './components/common/Loading';
 import Login from './pages/Login';
@@ -9,6 +10,8 @@ import ScannerPage from './pages/ScannerPage';
 import StudentsPage from './pages/StudentsPage';
 import ReportsPage from './pages/ReportsPage';
 import ConfigPage from './pages/ConfigPage';
+import AvanzadoPage from './pages/AvanzadoPage';
+import CorreccionesPage from './pages/CorreccionesPage';
 
 // Componente para rutas protegidas
 function PrivateRoute({ children, requireDirector = false }) {
@@ -54,6 +57,24 @@ function Layout({ children }) {
 
 export default function App() {
   const { isAuthenticated, loading } = useAuth();
+
+  // Cargar configuración y actualizar título del documento
+  useEffect(() => {
+    const loadInstitutionName = async () => {
+      try {
+        const response = await configAPI.get();
+        const institutionName = response.data.institution_name;
+        if (institutionName) {
+          document.title = `Sistema de Asistencia - ${institutionName}`;
+        }
+      } catch (error) {
+        // Si no está autenticado o hay error, mantener título genérico
+      }
+    };
+    if (isAuthenticated) {
+      loadInstitutionName();
+    }
+  }, [isAuthenticated]);
 
   if (loading) {
     return <Loading fullPage text="Cargando..." />;
@@ -112,6 +133,30 @@ export default function App() {
           <PrivateRoute requireDirector>
             <Layout>
               <ReportsPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      {/* Correcciones - todos los autenticados (auxiliar y director) */}
+      <Route
+        path="/correcciones"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <CorreccionesPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      {/* Avanzado - solo director */}
+      <Route
+        path="/avanzado"
+        element={
+          <PrivateRoute requireDirector>
+            <Layout>
+              <AvanzadoPage />
             </Layout>
           </PrivateRoute>
         }

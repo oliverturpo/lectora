@@ -11,6 +11,8 @@ Thumbs.db
 
 # Archivos de Claude Code
 .claude/
+CLAUDE.md
+CONFIGURAR_RED.md
 
 # Notas personales
 *.todo

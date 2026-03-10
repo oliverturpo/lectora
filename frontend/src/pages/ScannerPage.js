@@ -4,27 +4,7 @@ import { useAttendance } from '../contexts/AttendanceContext';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { useSound } from '../hooks/useSound';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
-
-// Hook para detectar tamano de pantalla
-function useScreenSize() {
-  const [screenSize, setScreenSize] = useState({
-    isMobile: window.innerWidth < 768,
-    isDesktop: window.innerWidth >= 768,
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      setScreenSize({
-        isMobile: window.innerWidth < 768,
-        isDesktop: window.innerWidth >= 768,
-      });
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  return screenSize;
-}
+import { useScreenSize } from '../hooks/useScreenSize';
 
 export default function ScannerPage() {
   const { stats, recentScans, isConnected, scanAttendance } = useAttendance();

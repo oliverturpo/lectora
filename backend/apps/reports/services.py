@@ -1108,3 +1108,221 @@ def generate_nomina_oficial_excel():
     buffer.seek(0)
 
     return buffer
+
+
+def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
+    """
+    Genera Excel con asistencia completa de todos los estudiantes.
+    Cada hoja corresponde a un grado y sección.
+    Columnas: DNI | Nombre | Grado | Sección | Fecha1 | Fecha2 | ... | % Asistencia
+    Valores: P (presente), T (tardanza), F (falta)
+    Porcentaje: Solo cuenta las "P" dividido entre total de días
+    """
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    # Estilos
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+    header_fill = PatternFill(start_color="1e40af", end_color="1e40af", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    center_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    title_font = Font(bold=True, size=14)
+    subtitle_font = Font(bold=True, size=11)
+
+    # Colores para estados
+    present_fill = PatternFill(start_color="dcfce7", end_color="dcfce7", fill_type="solid")
+    late_fill = PatternFill(start_color="fef3c7", end_color="fef3c7", fill_type="solid")
+    absent_fill = PatternFill(start_color="fee2e2", end_color="fee2e2", fill_type="solid")
+    percent_fill = PatternFill(start_color="dbeafe", end_color="dbeafe", fill_type="solid")
+
+    # Obtener todos los estudiantes activos
+    students_query = Student.objects.filter(is_active=True)
+    if grade_filter:
+        students_query = students_query.filter(grade=grade_filter)
+    if section_filter:
+        students_query = students_query.filter(section=section_filter)
+
+    students = students_query.order_by('grade', 'section', 'paternal_surname', 'maternal_surname')
+
+    # Obtener todas las sesiones ordenadas por fecha
+    sessions = DailySession.objects.all().order_by('date')
+    session_dates = list(sessions.values_list('id', 'date'))
+
+    # Agrupar estudiantes por grado y sección
+    grades_sections = {}
+    for student in students:
+        key = f"{student.grade}_{student.section}"
+        if key not in grades_sections:
+            grades_sections[key] = []
+        grades_sections[key].append(student)
+
+    # Crear diccionario de asistencias para acceso rápido
+    # {student_id: {session_id: status}}
+    attendance_dict = {}
+    all_attendances = Attendance.objects.select_related('student', 'session').all()
+    for att in all_attendances:
+        if att.student_id not in attendance_dict:
+            attendance_dict[att.student_id] = {}
+        attendance_dict[att.student_id][att.session_id] = att.status
+
+    institution = get_institution_name()
+
+    # Crear una hoja por cada grado-sección
+    for key in sorted(grades_sections.keys()):
+        grade, section = key.split('_')
+        sheet_name = f"{grade} - {section}"
+        ws = wb.create_sheet(title=sheet_name)
+
+        students_list = grades_sections[key]
+
+        # Título
+        ws.merge_cells('A1:E1')
+        ws['A1'] = institution
+        ws['A1'].font = title_font
+        ws['A1'].alignment = Alignment(horizontal="center")
+
+        ws.merge_cells('A2:E2')
+        ws['A2'] = f"REGISTRO DE ASISTENCIA - {grade} Secundaria - Sección {section}"
+        ws['A2'].font = subtitle_font
+        ws['A2'].alignment = Alignment(horizontal="center")
+
+        ws.merge_cells('A3:E3')
+        ws['A3'] = f"Año Académico {datetime.now().year}"
+        ws['A3'].alignment = Alignment(horizontal="center")
+
+        # Headers fijos
+        headers = ['N°', 'DNI', 'Apellidos y Nombres', 'Grado', 'Sección']
+
+        # Agregar columnas de fechas
+        for session_id, session_date in session_dates:
+            headers.append(session_date.strftime('%d/%m'))
+
+        # Agregar columna de porcentaje
+        headers.append('% Asist.')
+
+        # Escribir headers
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # Datos de estudiantes
+        for idx, student in enumerate(students_list, 1):
+            row = idx + 5
+
+            # N°
+            cell = ws.cell(row=row, column=1, value=idx)
+            cell.border = thin_border
+            cell.alignment = center_alignment
+
+            # DNI
+            cell = ws.cell(row=row, column=2, value=student.dni)
+            cell.border = thin_border
+            cell.alignment = center_alignment
+
+            # Nombre completo
+            cell = ws.cell(row=row, column=3, value=student.full_name)
+            cell.border = thin_border
+
+            # Grado
+            cell = ws.cell(row=row, column=4, value=student.grade)
+            cell.border = thin_border
+            cell.alignment = center_alignment
+
+            # Sección
+            cell = ws.cell(row=row, column=5, value=student.section)
+            cell.border = thin_border
+            cell.alignment = center_alignment
+
+            # Asistencias por fecha
+            total_days = 0
+            present_count = 0
+            col_offset = 6
+
+            student_attendance = attendance_dict.get(student.id, {})
+
+            for session_id, session_date in session_dates:
+                status = student_attendance.get(session_id)
+                cell = ws.cell(row=row, column=col_offset)
+                cell.border = thin_border
+                cell.alignment = center_alignment
+
+                if status:
+                    total_days += 1
+                    if status == 'present':
+                        cell.value = 'P'
+                        cell.fill = present_fill
+                        present_count += 1
+                    elif status == 'late':
+                        cell.value = 'T'
+                        cell.fill = late_fill
+                    elif status == 'absent':
+                        cell.value = 'F'
+                        cell.fill = absent_fill
+                else:
+                    cell.value = '-'
+
+                col_offset += 1
+
+            # Calcular porcentaje (solo P cuenta)
+            percentage = 0
+            if total_days > 0:
+                percentage = round((present_count / total_days) * 100)
+
+            cell = ws.cell(row=row, column=col_offset, value=f"{percentage}%")
+            cell.border = thin_border
+            cell.alignment = center_alignment
+            cell.fill = percent_fill
+            cell.font = Font(bold=True)
+
+        # Total al final
+        total_row = len(students_list) + 6
+        ws.cell(row=total_row, column=1, value=f"Total: {len(students_list)} estudiantes")
+        ws.cell(row=total_row, column=1).font = Font(bold=True)
+
+        # Leyenda
+        legend_row = total_row + 2
+        ws.cell(row=legend_row, column=1, value="Leyenda:")
+        ws.cell(row=legend_row, column=1).font = Font(bold=True)
+
+        ws.cell(row=legend_row + 1, column=1, value="P = Presente")
+        ws.cell(row=legend_row + 1, column=1).fill = present_fill
+
+        ws.cell(row=legend_row + 1, column=2, value="T = Tardanza")
+        ws.cell(row=legend_row + 1, column=2).fill = late_fill
+
+        ws.cell(row=legend_row + 1, column=3, value="F = Falta")
+        ws.cell(row=legend_row + 1, column=3).fill = absent_fill
+
+        # Ajustar anchos de columna
+        ws.column_dimensions['A'].width = 5
+        ws.column_dimensions['B'].width = 12
+        ws.column_dimensions['C'].width = 35
+        ws.column_dimensions['D'].width = 8
+        ws.column_dimensions['E'].width = 8
+
+        # Ancho para columnas de fechas y porcentaje
+        for i in range(6, 6 + len(session_dates) + 1):
+            ws.column_dimensions[get_column_letter(i)].width = 7
+
+    # Si no hay datos, crear hoja vacía con mensaje
+    if not grades_sections:
+        ws = wb.create_sheet(title="Sin datos")
+        ws['A1'] = "No hay estudiantes registrados con los filtros seleccionados."
+
+    # Guardar en buffer
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    return buffer

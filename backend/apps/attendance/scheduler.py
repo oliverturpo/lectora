@@ -3,7 +3,6 @@ Scheduler para apertura y cierre automático de sesiones
 """
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)

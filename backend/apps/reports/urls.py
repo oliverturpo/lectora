@@ -6,7 +6,8 @@ from .views import (
     export_nomina_by_grade_pdf,
     export_nomina_oficial_pdf,
     export_nomina_oficial_excel,
-    export_student_attendance_pdf
+    export_student_attendance_pdf,
+    export_complete_attendance_excel
 )
 
 app_name = 'reports'
@@ -19,4 +20,5 @@ urlpatterns = [
     path('nomina/oficial/', export_nomina_oficial_pdf, name='nomina-oficial'),
     path('nomina/oficial/excel/', export_nomina_oficial_excel, name='nomina-oficial-excel'),
     path('student/<int:student_id>/pdf/', export_student_attendance_pdf, name='student-attendance-pdf'),
+    path('attendance/complete/excel/', export_complete_attendance_excel, name='complete-attendance-excel'),
 ]

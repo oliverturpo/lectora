@@ -15,7 +15,8 @@ from .services import (
     generate_nomina_by_grade_pdf,
     generate_nomina_oficial_pdf,
     generate_nomina_oficial_excel,
-    generate_student_attendance_pdf
+    generate_student_attendance_pdf,
+    generate_complete_attendance_excel
 )
 
 
@@ -198,6 +199,31 @@ def export_nomina_oficial_excel(request):
     institution = settings.INSTITUTION_CONFIG.get('NAME', 'IES').replace(' ', '_')
     year = datetime.now().year
     filename = f'nomina_oficial_{institution}_{year}.xlsx'
+
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_complete_attendance_excel(request):
+    """
+    Exporta registro completo de asistencia a Excel.
+    Cada hoja corresponde a un grado y sección.
+    Columnas: DNI | Nombre | Grado | Sección | Fecha1 | Fecha2 | ... | % Asistencia
+    """
+    grade = request.GET.get('grade', None)
+    section = request.GET.get('section', None)
+
+    buffer = generate_complete_attendance_excel(grade, section)
+
+    institution = settings.INSTITUTION_CONFIG.get('NAME', 'IES').replace(' ', '_')
+    year = datetime.now().year
+    filename = f'asistencia_completa_{institution}_{year}.xlsx'
 
     response = HttpResponse(
         buffer.getvalue(),

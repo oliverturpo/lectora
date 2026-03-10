@@ -1,15 +1,17 @@
 {
   "name": "asistencia-tupac-frontend",
   "version": "1.0.0",
-  "description": "Sistema de Asistencia - IES Túpac Amaru - Frontend",
+  "description": "Sistema de Asistencia - IES Martin Chambi - Frontend",
   "private": true,
   "dependencies": {
     "axios": "^1.6.5",
     "date-fns": "^3.0.6",
+    "dompurify": "^3.3.2",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.33.0",
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",
+    "jspdf": "^4.2.0",
     "jszip": "^3.10.1",
     "react": "^18.2.0",
     "react-barcode": "^1.6.1",

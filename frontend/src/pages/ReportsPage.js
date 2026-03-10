@@ -2,45 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { reportsAPI, statsAPI } from '../api/endpoints';
 import Loading from '../components/common/Loading';
 import { toast } from 'react-toastify';
-
-// Hook para detectar tamaño de pantalla
-function useScreenSize() {
-  const [screenSize, setScreenSize] = useState({
-    isMobile: window.innerWidth < 640,
-    isTablet: window.innerWidth >= 640 && window.innerWidth < 1024,
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      setScreenSize({
-        isMobile: window.innerWidth < 640,
-        isTablet: window.innerWidth >= 640 && window.innerWidth < 1024,
-      });
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  return screenSize;
-}
+import { useScreenSize } from '../hooks/useScreenSize';
 
 const reports = [
-  // Reportes completos (todos los estudiantes)
+  // Reportes del día (por fecha seleccionada)
   {
-    id: 'completo-pdf',
-    name: 'Reporte Completo PDF',
-    desc: 'Todos los estudiantes',
+    id: 'dia-pdf',
+    name: 'Reporte del Día PDF',
+    desc: 'Asistencia de la fecha',
     icon: '📄',
     iconBg: '#dbeafe',
     format: 'pdf',
   },
   {
-    id: 'completo-excel',
-    name: 'Reporte Completo Excel',
-    desc: 'Todos los estudiantes',
+    id: 'dia-excel',
+    name: 'Reporte del Día Excel',
+    desc: 'Asistencia de la fecha',
     icon: '📊',
     iconBg: '#dcfce7',
     format: 'excel',
+  },
+  // Reporte completo con historial
+  {
+    id: 'completo-excel',
+    name: 'Registro Completo Excel',
+    desc: 'Historial con % asistencia',
+    icon: '📈',
+    iconBg: '#e0e7ff',
+    format: 'excel',
+    isComplete: true,
   },
   // Reportes filtrados por estado
   {
@@ -104,7 +94,12 @@ export default function ReportsPage() {
       if (grade) params.grade = grade;
       if (report.filter) params.status = report.filter;
 
-      if (report.format === 'pdf') {
+      if (report.isComplete) {
+        // Reporte completo con historial y porcentajes
+        const completeParams = {};
+        if (grade) completeParams.grade = grade;
+        response = await reportsAPI.exportCompleteAttendanceExcel(completeParams);
+      } else if (report.format === 'pdf') {
         response = await reportsAPI.exportPdf(params);
       } else {
         response = await reportsAPI.exportExcel(params);
@@ -119,9 +114,16 @@ export default function ReportsPage() {
       const a = document.createElement('a');
       a.href = url;
 
-      let filename = `reporte_${report.id}_${date}`;
-      if (grade) filename += `_${grade}`;
-      filename += report.format === 'pdf' ? '.pdf' : '.xlsx';
+      let filename;
+      if (report.isComplete) {
+        filename = `registro_completo_asistencia`;
+        if (grade) filename += `_${grade}`;
+        filename += '.xlsx';
+      } else {
+        filename = `reporte_${report.id}_${date}`;
+        if (grade) filename += `_${grade}`;
+        filename += report.format === 'pdf' ? '.pdf' : '.xlsx';
+      }
 
       a.download = filename;
       document.body.appendChild(a);

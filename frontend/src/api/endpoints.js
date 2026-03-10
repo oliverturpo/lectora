@@ -23,6 +23,7 @@ export const studentsAPI = {
   uploadPhoto: (id, formData) => api.post(`/students/${id}/upload-photo/`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
+  getAttendanceHistory: (id) => api.get(`/students/${id}/attendance_history/`),
 };
 
 // Attendance
@@ -31,6 +32,7 @@ export const attendanceAPI = {
   get: (id) => api.get(`/attendance/${id}/`),
   create: (data) => api.post('/attendance/', data),
   getBySession: (sessionId) => api.get(`/attendance/?session=${sessionId}`),
+  updateStatus: (id, data) => api.patch(`/attendance/${id}/update-status/`, data),
 };
 
 // Sessions
@@ -54,6 +56,23 @@ export const reportsAPI = {
     params,
     responseType: 'blob'
   }),
+  exportNominaByGrade: (params) => api.get('/reports/nomina/by-grade/', {
+    params,
+    responseType: 'blob'
+  }),
+  exportNominaOficial: () => api.get('/reports/nomina/oficial/', {
+    responseType: 'blob'
+  }),
+  exportNominaOficialExcel: () => api.get('/reports/nomina/oficial/excel/', {
+    responseType: 'blob'
+  }),
+  exportStudentAttendancePdf: (studentId) => api.get(`/reports/student/${studentId}/pdf/`, {
+    responseType: 'blob'
+  }),
+  exportCompleteAttendanceExcel: (params) => api.get('/reports/attendance/complete/excel/', {
+    params,
+    responseType: 'blob'
+  }),
 };
 
 // Stats
@@ -66,6 +85,7 @@ export const statsAPI = {
 export const configAPI = {
   get: () => api.get('/attendance/config/'),
   update: (data) => api.put('/attendance/config/', data),
+  getInstitutionName: () => api.get('/attendance/institution/'),
 };
 
 // Users

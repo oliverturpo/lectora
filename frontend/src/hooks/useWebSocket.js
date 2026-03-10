@@ -8,7 +8,9 @@ export function useWebSocket(onMessage) {
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
 
   const connect = useCallback(() => {
-    if (ws.current?.readyState === WebSocket.OPEN) return;
+    // Verificar si ya hay conexión activa o en progreso
+    if (ws.current?.readyState === WebSocket.OPEN ||
+        ws.current?.readyState === WebSocket.CONNECTING) return;
 
     setConnectionStatus('connecting');
     ws.current = new WebSocket(`${WS_URL}/attendance/`);
@@ -16,7 +18,6 @@ export function useWebSocket(onMessage) {
     ws.current.onopen = () => {
       setIsConnected(true);
       setConnectionStatus('connected');
-      console.log('WebSocket conectado');
     };
 
     ws.current.onmessage = (event) => {
@@ -31,7 +32,6 @@ export function useWebSocket(onMessage) {
     ws.current.onclose = () => {
       setIsConnected(false);
       setConnectionStatus('disconnected');
-      console.log('WebSocket desconectado, reconectando...');
 
       // Reconectar despues de 3 segundos
       reconnectTimeout.current = setTimeout(() => {

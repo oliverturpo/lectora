@@ -3,21 +3,11 @@ import { studentsAPI } from '../api/endpoints';
 import StudentList from '../components/students/StudentList';
 import StudentForm from '../components/students/StudentForm';
 import StudentIDCard from '../components/students/StudentIDCard';
+import BulkCarnetDownload from '../components/students/BulkCarnetDownload';
+import PrintableCarnets from '../components/students/PrintableCarnets';
 import Loading from '../components/common/Loading';
 import { toast } from 'react-toastify';
-
-// Hook para detectar tamaño de pantalla
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  return isMobile;
-}
+import { useIsMobile } from '../hooks/useScreenSize';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState([]);
@@ -27,6 +17,8 @@ export default function StudentsPage() {
   const [editingStudent, setEditingStudent] = useState(null);
   const [deletingStudent, setDeletingStudent] = useState(null);
   const [viewingCarnet, setViewingCarnet] = useState(null);
+  const [showBulkDownload, setShowBulkDownload] = useState(false);
+  const [showPrintable, setShowPrintable] = useState(false);
   const isMobile = useIsMobile();
 
   const fetchStudents = useCallback(async () => {
@@ -135,6 +127,41 @@ export default function StudentsPage() {
       cursor: 'pointer',
       textAlign: 'center',
     },
+    bulkBtn: {
+      padding: isMobile ? '0.75rem 1rem' : '0.625rem 1.25rem',
+      backgroundColor: '#059669',
+      color: 'white',
+      border: 'none',
+      borderRadius: '0.5rem',
+      fontSize: '0.875rem',
+      fontWeight: 500,
+      cursor: 'pointer',
+      textAlign: 'center',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.5rem',
+    },
+    printBtn: {
+      padding: isMobile ? '0.75rem 1rem' : '0.625rem 1.25rem',
+      backgroundColor: '#7c3aed',
+      color: 'white',
+      border: 'none',
+      borderRadius: '0.5rem',
+      fontSize: '0.875rem',
+      fontWeight: 500,
+      cursor: 'pointer',
+      textAlign: 'center',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.5rem',
+    },
+    headerButtons: {
+      display: 'flex',
+      gap: '0.75rem',
+      flexDirection: isMobile ? 'column' : 'row',
+    },
     confirmOverlay: {
       position: 'fixed',
       top: 0,
@@ -191,9 +218,35 @@ export default function StudentsPage() {
     <div>
       <div style={styles.header}>
         <h1 style={styles.title}>Gestion de Estudiantes</h1>
-        <button onClick={() => setShowForm(true)} style={styles.addBtn}>
-          + Nuevo Estudiante
-        </button>
+        <div style={styles.headerButtons}>
+          <button
+            onClick={() => setShowPrintable(true)}
+            style={styles.printBtn}
+            disabled={students.length === 0}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="6 9 6 2 18 2 18 9"/>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            PDF Imprimir
+          </button>
+          <button
+            onClick={() => setShowBulkDownload(true)}
+            style={styles.bulkBtn}
+            disabled={students.length === 0}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            ZIP Carnets
+          </button>
+          <button onClick={() => setShowForm(true)} style={styles.addBtn}>
+            + Nuevo Estudiante
+          </button>
+        </div>
       </div>
 
       <StudentList
@@ -243,6 +296,20 @@ export default function StudentsPage() {
         <StudentIDCard
           student={viewingCarnet}
           onClose={() => setViewingCarnet(null)}
+        />
+      )}
+
+      {showBulkDownload && (
+        <BulkCarnetDownload
+          students={students}
+          onClose={() => setShowBulkDownload(false)}
+        />
+      )}
+
+      {showPrintable && (
+        <PrintableCarnets
+          students={students}
+          onClose={() => setShowPrintable(false)}
         />
       )}
     </div>

@@ -5,29 +5,7 @@ import { useAttendance } from '../contexts/AttendanceContext';
 import { useAuth } from '../contexts/AuthContext';
 import { configAPI } from '../api/endpoints';
 import Loading from '../components/common/Loading';
-
-// Hook para detectar tamano de pantalla
-function useScreenSize() {
-  const [screenSize, setScreenSize] = useState({
-    isMobile: window.innerWidth < 640,
-    isTablet: window.innerWidth >= 640 && window.innerWidth < 1024,
-    isDesktop: window.innerWidth >= 1024,
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      setScreenSize({
-        isMobile: window.innerWidth < 640,
-        isTablet: window.innerWidth >= 640 && window.innerWidth < 1024,
-        isDesktop: window.innerWidth >= 1024,
-      });
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  return screenSize;
-}
+import { useScreenSize } from '../hooks/useScreenSize';
 
 // Animaciones
 const containerVariants = {
@@ -225,7 +203,7 @@ export default function Dashboard() {
     open_time: '07:30',
     punctuality_limit: '07:45',
     close_time: '08:00',
-    institution_name: 'IES Tupac Amaru',
+    institution_name: '',
   });
   const { isMobile } = useScreenSize();
 
