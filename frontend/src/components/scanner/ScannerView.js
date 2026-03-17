@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 const styles = {
   container: {
@@ -54,16 +54,38 @@ const styles = {
 
 export default function ScannerView({ onScan, isConnected, value, onChange }) {
   const inputRef = useRef(null);
+  const [inputStartTime, setInputStartTime] = useState(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
+  const handleChange = (e) => {
+    const newValue = e.target.value;
+
+    // Registrar tiempo de inicio cuando se empieza a escribir
+    if (value.length === 0 && newValue.length > 0) {
+      setInputStartTime(Date.now());
+    }
+
+    // Resetear tiempo si se borra todo
+    if (newValue.length === 0) {
+      setInputStartTime(null);
+    }
+
+    onChange(newValue);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const dni = value.trim();
     if (dni.length === 8 && /^\d+$/.test(dni)) {
-      onScan(dni);
+      // Detectar método: si tomó menos de 1 segundo es escáner, sino manual
+      const inputDuration = inputStartTime ? Date.now() - inputStartTime : 0;
+      const method = inputDuration < 1000 ? 'scanner' : 'manual';
+
+      onScan(dni, method);
+      setInputStartTime(null);
     }
   };
 
@@ -81,7 +103,7 @@ export default function ScannerView({ onScan, isConnected, value, onChange }) {
             ref={inputRef}
             type="text"
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={handleChange}
             onBlur={handleBlur}
             placeholder="DNI"
             maxLength={8}

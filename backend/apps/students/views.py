@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.utils import timezone
-from .models import Student
+from .models import Student, SECTIONS_BY_GRADE, ALL_SECTIONS
 from .serializers import StudentSerializer
 from apps.attendance.models import Attendance
 
@@ -97,4 +97,14 @@ class StudentViewSet(viewsets.ModelViewSet):
                 'attendance_percentage': round((present + late) / total_days * 100, 1) if total_days > 0 else 0
             },
             'history': history
+        })
+
+    @action(detail=False, methods=['get'])
+    def sections_by_grade(self, request):
+        """
+        Retorna las secciones disponibles por grado y la lista de todas las secciones.
+        """
+        return Response({
+            'sections_by_grade': SECTIONS_BY_GRADE,
+            'all_sections': sorted(ALL_SECTIONS)
         })

@@ -12,7 +12,22 @@ export const GRADES = [
   { value: '5to', label: '5to Secundaria' },
 ];
 
-export const SECTIONS = ['A', 'B', 'C'];
+// Secciones por grado (nombres de salones)
+export const SECTIONS_BY_GRADE = {
+  '1ro': ['ALBERT EINSTEIN', 'DANIEL A CARRION', 'PEDRO PAULET'],
+  '2do': ['JC MARIATEGUI', 'JORGE BASADRE', 'RAUL PORRAS B'],
+  '3ro': ['ISAAC NEWTON', 'T ALVA'],
+  '4to': ['DANTE NAVA', 'GAMALIEL CHURATA'],
+  '5to': ['CARLOS OQUENDO', 'J A ENCINAS'],
+};
+
+// Lista de todas las secciones únicas (para filtros)
+export const ALL_SECTIONS = [
+  ...new Set(Object.values(SECTIONS_BY_GRADE).flat())
+].sort();
+
+// Mantener SECTIONS para compatibilidad temporal (deprecated)
+export const SECTIONS = ALL_SECTIONS;
 
 export const ATTENDANCE_STATUS = {
   present: { label: 'Presente', color: '#22c55e' },

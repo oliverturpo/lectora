@@ -2,6 +2,21 @@ from django.db import models
 from django.core.validators import RegexValidator
 
 
+# Secciones por grado (nombres de salones)
+SECTIONS_BY_GRADE = {
+    '1ro': ['ALBERT EINSTEIN', 'DANIEL A CARRION', 'PEDRO PAULET'],
+    '2do': ['JC MARIATEGUI', 'JORGE BASADRE', 'RAUL PORRAS B'],
+    '3ro': ['ISAAC NEWTON', 'T ALVA'],
+    '4to': ['DANTE NAVA', 'GAMALIEL CHURATA'],
+    '5to': ['CARLOS OQUENDO', 'J A ENCINAS'],
+}
+
+# Lista de todas las secciones únicas
+ALL_SECTIONS = list(set(
+    section for sections in SECTIONS_BY_GRADE.values() for section in sections
+))
+
+
 class Student(models.Model):
     """
     Modelo de Estudiante
@@ -45,7 +60,7 @@ class Student(models.Model):
         verbose_name='Grado'
     )
     section = models.CharField(
-        max_length=5,
+        max_length=25,
         verbose_name='Sección'
     )
     
@@ -89,14 +104,19 @@ class Student(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.paternal_surname} {self.maternal_surname}, {self.first_name} - {self.grade}{self.section}"
+        return f"{self.paternal_surname} {self.maternal_surname}, {self.first_name} - {self.grade} {self.section}"
     
     @property
     def full_name(self):
-        """Nombre completo del estudiante"""
+        """Nombre completo del estudiante (Nombres Apellidos)"""
         return f"{self.first_name} {self.paternal_surname} {self.maternal_surname}"
-    
+
+    @property
+    def apellidos_nombres(self):
+        """Nombre formal: Apellidos, Nombres (para reportes oficiales)"""
+        return f"{self.paternal_surname} {self.maternal_surname}, {self.first_name}"
+
     @property
     def full_grade(self):
         """Grado completo con sección"""
-        return f"{self.get_grade_display()} - Sección {self.section}"
+        return f"{self.get_grade_display()} - {self.section}"

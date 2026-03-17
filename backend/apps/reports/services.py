@@ -165,11 +165,11 @@ def generate_excel_report(date, grade=None, status=None):
 
     # Ajustar anchos de columna
     ws.column_dimensions['A'].width = 12
-    ws.column_dimensions['B'].width = 35
-    ws.column_dimensions['C'].width = 10
-    ws.column_dimensions['D'].width = 10
-    ws.column_dimensions['E'].width = 12
-    ws.column_dimensions['F'].width = 12
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 8
+    ws.column_dimensions['D'].width = 17
+    ws.column_dimensions['E'].width = 10
+    ws.column_dimensions['F'].width = 10
 
     # Guardar en buffer
     buffer = BytesIO()
@@ -249,12 +249,12 @@ def generate_pdf_report(date, grade=None, status=None):
         elements.append(Spacer(1, 10))
 
     # ============ TABLA DE DATOS ============
-    table_data = [['N°', 'DNI', 'Nombre Completo', 'Grado', 'Sec.', 'Estado', 'Hora']]
+    table_data = [['N°', 'DNI', 'Nombre Completo', 'Grado', 'Sección', 'Estado', 'Hora']]
     for idx, record in enumerate(data, 1):
         table_data.append([
             str(idx),
             record['dni'],
-            record['nombre'][:35],
+            record['nombre'][:28],
             record['grado'],
             record['seccion'],
             record['estado'],
@@ -264,7 +264,7 @@ def generate_pdf_report(date, grade=None, status=None):
     if len(table_data) > 1:
         table = Table(
             table_data,
-            colWidths=[1*cm, 2*cm, 6*cm, 1.5*cm, 1.2*cm, 2*cm, 1.8*cm],
+            colWidths=[0.8*cm, 1.8*cm, 5*cm, 1.2*cm, 3.2*cm, 1.8*cm, 1.7*cm],
             repeatRows=1  # Repetir header de tabla en cada pagina
         )
 
@@ -428,7 +428,7 @@ def generate_nomina_by_grade_pdf(grade, section=None):
         table_data.append([
             str(idx),
             student.dni,
-            student.full_name,
+            student.apellidos_nombres,
             student.grade,
             student.section
         ])
@@ -436,7 +436,7 @@ def generate_nomina_by_grade_pdf(grade, section=None):
     if len(table_data) > 1:
         table = Table(
             table_data,
-            colWidths=[1*cm, 2.5*cm, 8*cm, 1.5*cm, 1.5*cm],
+            colWidths=[1*cm, 2.5*cm, 6*cm, 1.5*cm, 4*cm],
             repeatRows=1
         )
 
@@ -521,7 +521,7 @@ def generate_nomina_by_grade_pdf(grade, section=None):
         canvas.setFont('Helvetica-Bold', 10)
         canvas.setFillColor(colors.black)
         if section:
-            canvas.drawCentredString(center_x, header_top - 1.7*cm, f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria - Sección {section}")
+            canvas.drawCentredString(center_x, header_top - 1.7*cm, f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria - {section}")
         else:
             canvas.drawCentredString(center_x, header_top - 1.7*cm, f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria")
 
@@ -612,7 +612,7 @@ def generate_nomina_oficial_pdf():
         table_data.append([
             str(idx),
             student.dni,
-            student.full_name,
+            student.apellidos_nombres,
             student.grade,
             student.section
         ])
@@ -620,7 +620,7 @@ def generate_nomina_oficial_pdf():
     if len(table_data) > 1:
         table = Table(
             table_data,
-            colWidths=[1*cm, 2.5*cm, 8*cm, 1.5*cm, 1.5*cm],
+            colWidths=[1*cm, 2.5*cm, 6*cm, 1.5*cm, 4*cm],
             repeatRows=1
         )
 
@@ -911,7 +911,7 @@ def generate_student_attendance_pdf(student_id):
         # Info del estudiante
         canvas.setFont('Helvetica', 9)
         canvas.drawCentredString(center_x, header_top - 2.3*cm, f"Estudiante: {student.full_name}")
-        canvas.drawCentredString(center_x, header_top - 2.8*cm, f"DNI: {student.dni} | Grado: {student.grade}° - Sección: {student.section}")
+        canvas.drawCentredString(center_x, header_top - 2.8*cm, f"DNI: {student.dni} | Grado: {student.grade}° - {student.section}")
 
         canvas.setStrokeColor(colors.HexColor('#1e40af'))
         canvas.setLineWidth(1.5)
@@ -991,7 +991,7 @@ def generate_nomina_oficial_excel():
         ws['A1'].alignment = Alignment(horizontal="center")
 
         ws.merge_cells('A2:E2')
-        ws['A2'] = f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria - Sección {section}"
+        ws['A2'] = f"NÓMINA DE ESTUDIANTES - {grade}° Secundaria - {section}"
         ws['A2'].font = subtitle_font
         ws['A2'].alignment = Alignment(horizontal="center")
 
@@ -1017,7 +1017,7 @@ def generate_nomina_oficial_excel():
             ws.cell(row=row, column=2, value=student.dni).border = thin_border
             ws.cell(row=row, column=2).alignment = Alignment(horizontal="center")
 
-            ws.cell(row=row, column=3, value=student.full_name).border = thin_border
+            ws.cell(row=row, column=3, value=student.apellidos_nombres).border = thin_border
 
             ws.cell(row=row, column=4, value=student.grade).border = thin_border
             ws.cell(row=row, column=4).alignment = Alignment(horizontal="center")
@@ -1035,9 +1035,9 @@ def generate_nomina_oficial_excel():
         # Ajustar anchos de columna
         ws.column_dimensions['A'].width = 6
         ws.column_dimensions['B'].width = 12
-        ws.column_dimensions['C'].width = 40
-        ws.column_dimensions['D'].width = 10
-        ws.column_dimensions['E'].width = 10
+        ws.column_dimensions['C'].width = 35
+        ws.column_dimensions['D'].width = 8
+        ws.column_dimensions['E'].width = 20
 
     # Crear hoja de resumen al inicio
     summary_ws = wb.create_sheet(title="Resumen", index=0)
@@ -1098,9 +1098,9 @@ def generate_nomina_oficial_excel():
     summary_ws.cell(row=row_num, column=3).alignment = Alignment(horizontal="center")
 
     # Ajustar anchos
-    summary_ws.column_dimensions['A'].width = 15
-    summary_ws.column_dimensions['B'].width = 15
-    summary_ws.column_dimensions['C'].width = 20
+    summary_ws.column_dimensions['A'].width = 10
+    summary_ws.column_dimensions['B'].width = 22
+    summary_ws.column_dimensions['C'].width = 18
 
     # Guardar en buffer
     buffer = BytesIO()
@@ -1190,7 +1190,7 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
         ws['A1'].alignment = Alignment(horizontal="center")
 
         ws.merge_cells('A2:E2')
-        ws['A2'] = f"REGISTRO DE ASISTENCIA - {grade} Secundaria - Sección {section}"
+        ws['A2'] = f"REGISTRO DE ASISTENCIA - {grade} Secundaria - {section}"
         ws['A2'].font = subtitle_font
         ws['A2'].alignment = Alignment(horizontal="center")
 
@@ -1231,7 +1231,7 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
             cell.alignment = center_alignment
 
             # Nombre completo
-            cell = ws.cell(row=row, column=3, value=student.full_name)
+            cell = ws.cell(row=row, column=3, value=student.apellidos_nombres)
             cell.border = thin_border
 
             # Grado
@@ -1307,9 +1307,9 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
         # Ajustar anchos de columna
         ws.column_dimensions['A'].width = 5
         ws.column_dimensions['B'].width = 12
-        ws.column_dimensions['C'].width = 35
-        ws.column_dimensions['D'].width = 8
-        ws.column_dimensions['E'].width = 8
+        ws.column_dimensions['C'].width = 30
+        ws.column_dimensions['D'].width = 6
+        ws.column_dimensions['E'].width = 18
 
         # Ancho para columnas de fechas y porcentaje
         for i in range(6, 6 + len(session_dates) + 1):

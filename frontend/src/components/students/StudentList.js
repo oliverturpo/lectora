@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import StudentCard from './StudentCard';
+import { SECTIONS_BY_GRADE, ALL_SECTIONS } from '../../config/constants';
 
 // Hook para detectar tamaño de pantalla
 function useIsMobile() {
@@ -24,7 +25,15 @@ export default function StudentList({
 }) {
   const isMobile = useIsMobile();
   const grades = ['', '1ro', '2do', '3ro', '4to', '5to'];
-  const sections = ['', 'A', 'B', 'C'];
+
+  // Obtener secciones según el grado seleccionado
+  const getSectionsForFilter = () => {
+    if (filters.grade && SECTIONS_BY_GRADE[filters.grade]) {
+      return SECTIONS_BY_GRADE[filters.grade];
+    }
+    return ALL_SECTIONS;
+  };
+  const sections = getSectionsForFilter();
 
   const styles = {
     filters: {
@@ -90,7 +99,11 @@ export default function StudentList({
         <div style={styles.selectsRow}>
           <select
             value={filters.grade || ''}
-            onChange={(e) => onFilterChange({ ...filters, grade: e.target.value })}
+            onChange={(e) => {
+              const newGrade = e.target.value;
+              // Reset section when grade changes (section might not be valid for new grade)
+              onFilterChange({ ...filters, grade: newGrade, section: '' });
+            }}
             style={{ ...styles.select, flex: 1 }}
           >
             <option value="">Grados</option>
@@ -104,7 +117,7 @@ export default function StudentList({
             style={{ ...styles.select, flex: 1 }}
           >
             <option value="">Secciones</option>
-            {sections.slice(1).map((s) => (
+            {sections.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>

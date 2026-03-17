@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { reportsAPI } from '../../api/endpoints';
-import { GRADES, SECTIONS } from '../../config/constants';
+import { GRADES, SECTIONS_BY_GRADE } from '../../config/constants';
 import { saveAs } from 'file-saver';
 
 function useScreenSize() {
@@ -211,7 +211,10 @@ export default function NominaForm() {
               <label style={styles.label}>Grado *</label>
               <select
                 value={grade}
-                onChange={(e) => setGrade(e.target.value)}
+                onChange={(e) => {
+                  setGrade(e.target.value);
+                  setSection(''); // Reset section when grade changes
+                }}
                 style={styles.select}
                 onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
@@ -232,11 +235,12 @@ export default function NominaForm() {
                 style={styles.select}
                 onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                disabled={!grade}
               >
                 <option value="">Todas</option>
-                {SECTIONS.map((s) => (
+                {grade && SECTIONS_BY_GRADE[grade]?.map((s) => (
                   <option key={s} value={s}>
-                    Sección {s}
+                    {s}
                   </option>
                 ))}
               </select>

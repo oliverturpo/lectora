@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student
+from .models import Student, SECTIONS_BY_GRADE
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -26,6 +26,20 @@ class StudentSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'barcode', 'is_active', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        """Validar que la sección corresponda al grado"""
+        grade = data.get('grade', getattr(self.instance, 'grade', None))
+        section = data.get('section', getattr(self.instance, 'section', None))
+
+        if grade and section:
+            valid_sections = SECTIONS_BY_GRADE.get(grade, [])
+            if section not in valid_sections:
+                raise serializers.ValidationError({
+                    'section': f'La sección "{section}" no es válida para el grado {grade}. '
+                              f'Opciones válidas: {", ".join(valid_sections)}'
+                })
+        return data
 
     def create(self, validated_data):
         """Asegurar que is_active=True al crear"""

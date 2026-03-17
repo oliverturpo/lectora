@@ -88,11 +88,12 @@ export function AttendanceProvider({ children }) {
   }, []);
 
   // Escanear asistencia via WebSocket
-  const scanAttendance = useCallback((dni, laptopId = 'WEB') => {
+  const scanAttendance = useCallback((dni, laptopId = 'WEB', method = 'scanner') => {
     sendMessage({
       type: 'scan_attendance',
       dni,
       laptop_id: laptopId,
+      method: method,
     });
   }, [sendMessage]);
 

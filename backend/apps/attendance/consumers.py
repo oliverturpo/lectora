@@ -58,13 +58,14 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
         """Procesa un escaneo de asistencia"""
         dni = data.get('dni')
         laptop_id = data.get('laptop_id', 'WEB')
+        method = data.get('method', 'scanner')
 
         if not dni:
             await self.send_error('DNI no proporcionado')
             return
 
         # Procesar en la base de datos
-        result = await self.register_attendance(dni, laptop_id)
+        result = await self.register_attendance(dni, laptop_id, method)
 
         if result['success']:
             # Enviar a todos los clientes
@@ -86,7 +87,7 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
             }))
 
     @database_sync_to_async
-    def register_attendance(self, dni, laptop_id):
+    def register_attendance(self, dni, laptop_id, method='scanner'):
         """Registra la asistencia en la base de datos"""
         from apps.students.models import Student
         from apps.attendance.models import DailySession, Attendance
@@ -178,7 +179,7 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
             scan_timestamp=timezone.now(),
             status=status,
             laptop_id=laptop_id,
-            registration_method='scanner'
+            registration_method=method
         )
 
         # Actualizar contadores de la sesion

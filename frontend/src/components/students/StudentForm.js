@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GRADES, SECTIONS } from '../../config/constants';
+import { GRADES, SECTIONS_BY_GRADE } from '../../config/constants';
 import { getPhotoUrl } from '../../utils/photoUrl';
 
 // Hook para detectar tamaño de pantalla
@@ -21,7 +21,7 @@ const initialData = {
   paternal_surname: '',
   maternal_surname: '',
   grade: '1ro',
-  section: 'A',
+  section: SECTIONS_BY_GRADE['1ro'][0],
 };
 
 // Funcion para capitalizar nombres: "CLIVER" -> "Cliver", "cliver oliver" -> "Cliver Oliver"
@@ -50,13 +50,15 @@ export default function StudentForm({ student, onSave, onClose }) {
 
   useEffect(() => {
     if (student) {
+      const grade = student.grade || '1ro';
+      const section = student.section || SECTIONS_BY_GRADE[grade][0];
       setFormData({
         dni: student.dni || '',
         first_name: student.first_name || '',
         paternal_surname: student.paternal_surname || '',
         maternal_surname: student.maternal_surname || '',
-        grade: student.grade || '1ro',
-        section: student.section || 'A',
+        grade: grade,
+        section: section,
       });
       if (student.photo) {
         setPhotoPreview(getPhotoUrl(student.photo));
@@ -125,7 +127,18 @@ export default function StudentForm({ student, onSave, onClose }) {
       processedValue = capitalizeWords(value);
     }
 
-    setFormData((prev) => ({ ...prev, [field]: processedValue }));
+    // Si cambia el grado, resetear la sección a la primera del nuevo grado
+    if (field === 'grade') {
+      const newSections = SECTIONS_BY_GRADE[value] || [];
+      setFormData((prev) => ({
+        ...prev,
+        grade: value,
+        section: newSections[0] || '',
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [field]: processedValue }));
+    }
+
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: null }));
     }
@@ -457,9 +470,9 @@ export default function StudentForm({ student, onSave, onClose }) {
                 onChange={(e) => handleChange('section', e.target.value)}
                 style={styles.select}
               >
-                {SECTIONS.map((s) => (
+                {(SECTIONS_BY_GRADE[formData.grade] || []).map((s) => (
                   <option key={s} value={s}>
-                    Seccion {s}
+                    {s}
                   </option>
                 ))}
               </select>

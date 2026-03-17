@@ -14,13 +14,14 @@ export default function ScannerPage() {
   const [scanResult, setScanResult] = useState(null);
   const [showMobileModal, setShowMobileModal] = useState(false);
   const [cameraMode, setCameraMode] = useState(false);
+  const [inputStartTime, setInputStartTime] = useState(null);
   const inputRef = useRef(null);
   const prevScansLengthRef = useRef(0);
   const { isMobile, isDesktop } = useScreenSize();
 
   // Hook para scanner de cámara (solo se activa en modo cámara)
   const handleCameraScan = useCallback((dni) => {
-    scanAttendance(dni);
+    scanAttendance(dni, 'WEB', 'scanner');
   }, [scanAttendance]);
 
   const {
@@ -92,12 +93,23 @@ export default function ScannerPage() {
     e.preventDefault();
     const dni = inputValue.trim();
     if (dni.length === 8 && /^\d+$/.test(dni)) {
-      scanAttendance(dni);
+      // Detectar método: si es mobile sin cámara siempre es manual
+      // En desktop: si tomó menos de 1 segundo es escáner, sino manual
+      let method = 'manual';
+      if (isMobile && !cameraMode) {
+        method = 'manual';
+      } else if (inputStartTime) {
+        const inputDuration = Date.now() - inputStartTime;
+        method = inputDuration < 1000 ? 'scanner' : 'manual';
+      }
+
+      scanAttendance(dni, 'WEB', method);
       setInputValue('');
+      setInputStartTime(null);
     } else if (dni.length > 0) {
       playError();
     }
-  }, [inputValue, scanAttendance, playError]);
+  }, [inputValue, scanAttendance, playError, inputStartTime, isMobile, cameraMode]);
 
   const handleBlur = () => {
     setTimeout(() => inputRef.current?.focus(), 100);
@@ -176,7 +188,16 @@ export default function ScannerPage() {
                 inputMode="numeric"
                 pattern="[0-9]*"
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  if (inputValue.length === 0 && newValue.length > 0) {
+                    setInputStartTime(Date.now());
+                  }
+                  if (newValue.length === 0) {
+                    setInputStartTime(null);
+                  }
+                  setInputValue(newValue);
+                }}
                 onBlur={handleBlur}
                 placeholder="Escanear DNI..."
                 maxLength={8}
@@ -653,6 +674,7 @@ export default function ScannerPage() {
                   letterSpacing: '0.1em',
                 }}
               />
+              {/* En mobile teclado siempre es manual */}
             </form>
           </>
         )}
