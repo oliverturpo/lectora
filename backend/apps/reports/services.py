@@ -33,11 +33,12 @@ ESCUDO_PATH = os.path.join(STATIC_DIR, 'escudo.png')
 def get_attendance_data(date, grade=None, status=None):
     """Obtiene los datos de asistencia para una fecha con estadísticas calculadas"""
     session = DailySession.objects.filter(date=date).first()
-    empty_stats = {'total': 0, 'present': 0, 'late': 0, 'absent': 0, 'percentage': 0}
+    empty_stats = {'total': 0, 'present': 0, 'late': 0, 'absent': 0, 'justified': 0, 'percentage': 0}
     if not session:
         return None, [], empty_stats
 
-    attendances = Attendance.objects.filter(session=session).select_related('student')
+    # Incluir justificación para detectar faltas justificadas
+    attendances = Attendance.objects.filter(session=session).select_related('student', 'justification')
 
     if grade:
         attendances = attendances.filter(student__grade=grade)
@@ -51,7 +52,8 @@ def get_attendance_data(date, grade=None, status=None):
         'total': 0,
         'present': 0,
         'late': 0,
-        'absent': 0
+        'absent': 0,
+        'justified': 0
     }
 
     for att in attendances.order_by('student__grade', 'student__section', 'student__paternal_surname'):
@@ -61,14 +63,25 @@ def get_attendance_data(date, grade=None, status=None):
             local_time = timezone.localtime(att.scan_timestamp)
             hora_local = local_time.strftime('%H:%M:%S')
 
+        # Determinar estado para mostrar (PJ si es falta justificada)
+        estado_display = att.get_status_display()
+        estado_key = att.status
+        is_justified = False
+
+        if att.status == 'absent' and hasattr(att, 'justification') and att.justification:
+            estado_display = 'PJ'
+            estado_key = 'justified'
+            is_justified = True
+
         data.append({
             'dni': att.student.dni,
             'nombre': att.student.full_name,
             'grado': att.student.grade,
             'seccion': att.student.section,
-            'estado': att.get_status_display(),
-            'estado_key': att.status,  # Clave para conteo
+            'estado': estado_display,
+            'estado_key': estado_key,
             'hora': hora_local,
+            'is_justified': is_justified,
         })
 
         # Contar estadísticas reales
@@ -78,7 +91,10 @@ def get_attendance_data(date, grade=None, status=None):
         elif att.status == 'late':
             stats['late'] += 1
         elif att.status == 'absent':
-            stats['absent'] += 1
+            if is_justified:
+                stats['justified'] += 1
+            else:
+                stats['absent'] += 1
 
     # Calcular porcentaje de asistencia (presentes + tardanzas = asistieron)
     if stats['total'] > 0:
@@ -149,6 +165,7 @@ def generate_excel_report(date, grade=None, status=None):
         'Presente': PatternFill(start_color="dcfce7", end_color="dcfce7", fill_type="solid"),
         'Tardanza': PatternFill(start_color="fef3c7", end_color="fef3c7", fill_type="solid"),
         'Falta': PatternFill(start_color="fee2e2", end_color="fee2e2", fill_type="solid"),
+        'PJ': PatternFill(start_color="dbeafe", end_color="dbeafe", fill_type="solid"),  # Azul claro para justificadas
     }
 
     for row_num, record in enumerate(data, 7):
@@ -296,6 +313,9 @@ def generate_pdf_report(date, grade=None, status=None):
             elif record['estado'] == 'Falta':
                 style.add('BACKGROUND', (5, i), (5, i), colors.HexColor('#fee2e2'))
                 style.add('TEXTCOLOR', (5, i), (5, i), colors.HexColor('#991b1b'))
+            elif record['estado'] == 'PJ':
+                style.add('BACKGROUND', (5, i), (5, i), colors.HexColor('#dbeafe'))
+                style.add('TEXTCOLOR', (5, i), (5, i), colors.HexColor('#1e40af'))
 
         table.setStyle(style)
         elements.append(table)
@@ -763,14 +783,16 @@ def generate_student_attendance_pdf(student_id):
     elements = []
     styles = getSampleStyleSheet()
 
-    # Obtener historial de asistencias
-    attendances = Attendance.objects.filter(student=student).select_related('session').order_by('-session__date')
+    # Obtener historial de asistencias (incluir justificación)
+    attendances = Attendance.objects.filter(student=student).select_related('session', 'justification').order_by('-session__date')
 
-    # Calcular estadísticas
+    # Calcular estadísticas (contar justificadas por separado)
     total_days = attendances.count()
     present = attendances.filter(status='present').count()
     late = attendances.filter(status='late').count()
-    absent = attendances.filter(status='absent').count()
+    # Contar faltas justificadas y no justificadas
+    justified = sum(1 for att in attendances if att.status == 'absent' and hasattr(att, 'justification') and att.justification)
+    absent = attendances.filter(status='absent').count() - justified
     attendance_percentage = round((present + late) / total_days * 100, 1) if total_days > 0 else 0
 
     # Resumen estadístico
@@ -779,18 +801,20 @@ def generate_student_attendance_pdf(student_id):
         f"Presentes\n{present}",
         f"Tardanzas\n{late}",
         f"Faltas\n{absent}",
+        f"Justific.\n{justified}",
         f"Asistencia\n{attendance_percentage}%"
     ]]
-    summary_table = Table(summary_data, colWidths=[3*cm, 3*cm, 3*cm, 3*cm, 3*cm])
+    summary_table = Table(summary_data, colWidths=[2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm])
     summary_table.setStyle(TableStyle([
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#dbeafe')),
-        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#dcfce7')),
-        ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#fef3c7')),
-        ('BACKGROUND', (3, 0), (3, 0), colors.HexColor('#fee2e2')),
-        ('BACKGROUND', (4, 0), (4, 0), colors.HexColor('#e0e7ff')),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#e0e7ff')),  # Total días
+        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#dcfce7')),  # Presentes
+        ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#fef3c7')),  # Tardanzas
+        ('BACKGROUND', (3, 0), (3, 0), colors.HexColor('#fee2e2')),  # Faltas
+        ('BACKGROUND', (4, 0), (4, 0), colors.HexColor('#dbeafe')),  # Justificadas
+        ('BACKGROUND', (5, 0), (5, 0), colors.HexColor('#f3e8ff')),  # % Asistencia
         ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('TOPPADDING', (0, 0), (-1, -1), 10),
@@ -812,10 +836,15 @@ def generate_student_attendance_pdf(student_id):
 
             fecha_str = att.session.date.strftime('%d/%m/%Y')
 
+            # Determinar estado (PJ si es falta justificada)
+            estado_display = att.get_status_display()
+            if att.status == 'absent' and hasattr(att, 'justification') and att.justification:
+                estado_display = 'PJ'
+
             table_data.append([
                 str(idx),
                 fecha_str,
-                att.get_status_display(),
+                estado_display,
                 hora_local,
                 att.get_registration_method_display()
             ])
@@ -843,6 +872,7 @@ def generate_student_attendance_pdf(student_id):
 
         # Colores por estado
         for i, att in enumerate(attendances, 1):
+            is_justified = att.status == 'absent' and hasattr(att, 'justification') and att.justification
             if att.status == 'present':
                 style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#dcfce7'))
                 style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#166534'))
@@ -850,8 +880,12 @@ def generate_student_attendance_pdf(student_id):
                 style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#fef3c7'))
                 style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#92400e'))
             elif att.status == 'absent':
-                style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#fee2e2'))
-                style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#991b1b'))
+                if is_justified:
+                    style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#dbeafe'))
+                    style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#1e40af'))
+                else:
+                    style.add('BACKGROUND', (2, i), (2, i), colors.HexColor('#fee2e2'))
+                    style.add('TEXTCOLOR', (2, i), (2, i), colors.HexColor('#991b1b'))
 
         table.setStyle(style)
         elements.append(table)
@@ -1141,7 +1175,8 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
     present_fill = PatternFill(start_color="dcfce7", end_color="dcfce7", fill_type="solid")
     late_fill = PatternFill(start_color="fef3c7", end_color="fef3c7", fill_type="solid")
     absent_fill = PatternFill(start_color="fee2e2", end_color="fee2e2", fill_type="solid")
-    percent_fill = PatternFill(start_color="dbeafe", end_color="dbeafe", fill_type="solid")
+    justified_fill = PatternFill(start_color="dbeafe", end_color="dbeafe", fill_type="solid")  # Azul para PJ
+    percent_fill = PatternFill(start_color="e0e7ff", end_color="e0e7ff", fill_type="solid")
 
     # Obtener todos los estudiantes activos
     students_query = Student.objects.filter(is_active=True)
@@ -1165,13 +1200,18 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
         grades_sections[key].append(student)
 
     # Crear diccionario de asistencias para acceso rápido
-    # {student_id: {session_id: status}}
+    # {student_id: {session_id: {'status': status, 'justified': bool}}}
     attendance_dict = {}
-    all_attendances = Attendance.objects.select_related('student', 'session').all()
+    all_attendances = Attendance.objects.select_related('student', 'session', 'justification').all()
     for att in all_attendances:
         if att.student_id not in attendance_dict:
             attendance_dict[att.student_id] = {}
-        attendance_dict[att.student_id][att.session_id] = att.status
+        # Verificar si tiene justificación (solo para faltas)
+        is_justified = att.status == 'absent' and hasattr(att, 'justification') and att.justification is not None
+        attendance_dict[att.student_id][att.session_id] = {
+            'status': att.status,
+            'justified': is_justified
+        }
 
     institution = get_institution_name()
 
@@ -1252,12 +1292,14 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
             student_attendance = attendance_dict.get(student.id, {})
 
             for session_id, session_date in session_dates:
-                status = student_attendance.get(session_id)
+                att_data = student_attendance.get(session_id)
                 cell = ws.cell(row=row, column=col_offset)
                 cell.border = thin_border
                 cell.alignment = center_alignment
 
-                if status:
+                if att_data:
+                    status = att_data['status']
+                    is_justified = att_data['justified']
                     total_days += 1
                     if status == 'present':
                         cell.value = 'P'
@@ -1267,8 +1309,12 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
                         cell.value = 'T'
                         cell.fill = late_fill
                     elif status == 'absent':
-                        cell.value = 'F'
-                        cell.fill = absent_fill
+                        if is_justified:
+                            cell.value = 'PJ'
+                            cell.fill = justified_fill
+                        else:
+                            cell.value = 'F'
+                            cell.fill = absent_fill
                 else:
                     cell.value = '-'
 
@@ -1303,6 +1349,9 @@ def generate_complete_attendance_excel(grade_filter=None, section_filter=None):
 
         ws.cell(row=legend_row + 1, column=3, value="F = Falta")
         ws.cell(row=legend_row + 1, column=3).fill = absent_fill
+
+        ws.cell(row=legend_row + 1, column=4, value="PJ = Falta Justificada")
+        ws.cell(row=legend_row + 1, column=4).fill = justified_fill
 
         # Ajustar anchos de columna
         ws.column_dimensions['A'].width = 5

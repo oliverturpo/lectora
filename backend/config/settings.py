@@ -105,6 +105,17 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Cache configuration - mejora rendimiento de get_system_config()
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'asistencia-cache',
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000
+        }
+    }
+}
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -134,6 +145,11 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+
+# Frontend React build (produccion)
+FRONTEND_DIR = BASE_DIR.parent / 'frontend' / 'build'
+if FRONTEND_DIR.exists():
+    STATICFILES_DIRS.append(FRONTEND_DIR / 'static')
 
 # Media files (uploads)
 MEDIA_URL = '/media/'

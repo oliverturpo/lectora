@@ -10,6 +10,8 @@ class User(AbstractUser):
     ROLE_CHOICES = [
         ('director', 'Director'),
         ('auxiliar', 'Auxiliar'),
+        ('psicologo', 'Psicólogo'),
+        ('escaner', 'Escáner'),
     ]
     
     # Campos adicionales
@@ -36,8 +38,23 @@ class User(AbstractUser):
     def is_director(self):
         """Verifica si el usuario es director"""
         return self.role == 'director'
-    
+
     @property
     def is_auxiliar(self):
         """Verifica si el usuario es auxiliar"""
         return self.role == 'auxiliar'
+
+    @property
+    def is_psicologo(self):
+        """Verifica si el usuario es psicólogo"""
+        return self.role == 'psicologo'
+
+    @property
+    def is_escaner(self):
+        """Verifica si el usuario es escáner"""
+        return self.role == 'escaner'
+
+    @property
+    def can_justify(self):
+        """Verifica si el usuario puede justificar faltas"""
+        return self.role in ['director', 'auxiliar', 'psicologo']

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { configAPI } from '../../api/endpoints';
 import { useIsMobile } from '../../hooks/useScreenSize';
+import NotificationBell from './NotificationBell';
 
 // Iconos
 const Icons = {
@@ -78,7 +79,7 @@ const getIcon = (path) => {
 };
 
 export default function Navbar() {
-  const { user, isDirector, logout } = useAuth();
+  const { user, permissions, canViewNotifications, getRoleName, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -123,20 +124,20 @@ export default function Navbar() {
 
   const isActive = (path) => location.pathname === path;
 
-  const navLinks = isDirector
-    ? [
-        { path: '/', label: 'Dashboard' },
-        { path: '/scanner', label: 'Escaner' },
-        { path: '/students', label: 'Estudiantes' },
-        { path: '/reports', label: 'Reportes' },
-        { path: '/correcciones', label: 'Justificar' },
-        { path: '/avanzado', label: 'Avanzado' },
-        { path: '/config', label: 'Config' },
-      ]
-    : [
-        { path: '/scanner', label: 'Escaner' },
-        { path: '/correcciones', label: 'Corregir' },
-      ];
+  // Generar links dinámicos basados en permisos del rol
+  const navLinks = useMemo(() => {
+    const allLinks = [
+      { path: '/', label: 'Dashboard', page: 'dashboard' },
+      { path: '/scanner', label: 'Escaner', page: 'scanner' },
+      { path: '/students', label: 'Estudiantes', page: 'students' },
+      { path: '/reports', label: 'Reportes', page: 'reports' },
+      { path: '/correcciones', label: 'Justificar', page: 'correcciones' },
+      { path: '/avanzado', label: 'Avanzado', page: 'avanzado' },
+      { path: '/config', label: 'Config', page: 'config' },
+    ];
+
+    return allLinks.filter(link => permissions.pages.includes(link.page));
+  }, [permissions]);
 
   // ==================== ESTILOS ====================
   const styles = {
@@ -401,6 +402,7 @@ export default function Navbar() {
               </div>
 
               <div style={styles.userSection}>
+                {canViewNotifications && <NotificationBell />}
                 <div style={styles.userInfo}>
                   <div style={styles.userAvatar}>
                     {user?.full_name ? user.full_name[0].toUpperCase() : 'U'}
@@ -489,7 +491,7 @@ export default function Navbar() {
                   {user?.full_name || user?.username}
                 </div>
                 <div style={styles.mobileUserRole}>
-                  {isDirector ? 'Director' : 'Auxiliar'}
+                  {getRoleName()}
                 </div>
               </div>
 

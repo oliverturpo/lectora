@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../hooks/useAuth';
 import { attendanceAPI, sessionsAPI } from '../api/endpoints';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { toast } from 'react-toastify';
 import Loading from '../components/common/Loading';
 import { useIsMobile } from '../hooks/useScreenSize';
+import { useAuth } from '../hooks/useAuth';
+import JustificationModal from '../components/attendance/JustificationModal';
 
 export default function CorreccionesPage() {
-  const { isDirector } = useAuth();
   const isMobile = useIsMobile();
+  const { isDirector, canJustify } = useAuth();
   const [loading, setLoading] = useState(true);
   const [attendances, setAttendances] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
@@ -20,26 +21,22 @@ export default function CorreccionesPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const pageTitle = isDirector ? 'Gestionar Asistencias' : 'Corregir Tardanzas';
+  // Modal de justificación
+  const [justificationModalOpen, setJustificationModalOpen] = useState(false);
+  const [selectedAttendance, setSelectedAttendance] = useState(null);
+
+  const pageTitle = canJustify ? 'Gestionar Asistencias' : 'Ver Asistencias';
   const pageSubtitle = isDirector
     ? 'Modificar estado de asistencia de cualquier día'
-    : 'Cambiar estado de TARDANZA a PRESENTE (solo hoy)';
+    : 'Justificar tardanzas y faltas';
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      let session;
-
-      if (isDirector) {
-        // Director: buscar sesión por fecha seleccionada
-        const sessionsRes = await sessionsAPI.list({ date: selectedDate });
-        const sessions = sessionsRes.data.results || sessionsRes.data || [];
-        session = sessions.find(s => s.date === selectedDate);
-      } else {
-        // Auxiliar: solo sesión actual
-        const sessionRes = await sessionsAPI.getCurrent();
-        session = sessionRes.data;
-      }
+      // Buscar sesión por fecha seleccionada
+      const sessionsRes = await sessionsAPI.list({ date: selectedDate });
+      const sessions = sessionsRes.data.results || sessionsRes.data || [];
+      const session = sessions.find(s => s.date === selectedDate);
 
       if (!session) {
         setCurrentSession(null);
@@ -52,11 +49,7 @@ export default function CorreccionesPage() {
 
       // Obtener asistencias
       const params = { session: session.id };
-
-      // Auxiliar: solo tardanzas
-      if (!isDirector) {
-        params.status = 'late';
-      } else if (filterStatus !== 'all') {
+      if (filterStatus !== 'all') {
         params.status = filterStatus;
       }
 
@@ -73,7 +66,7 @@ export default function CorreccionesPage() {
     } finally {
       setLoading(false);
     }
-  }, [isDirector, selectedDate, filterStatus]);
+  }, [selectedDate, filterStatus]);
 
   useEffect(() => {
     loadData();
@@ -92,6 +85,15 @@ export default function CorreccionesPage() {
     } finally {
       setUpdating(null);
     }
+  };
+
+  const openJustificationModal = (attendance) => {
+    setSelectedAttendance(attendance);
+    setJustificationModalOpen(true);
+  };
+
+  const handleJustificationSuccess = () => {
+    loadData();
   };
 
   const formatTime = (timestamp) => {
@@ -331,6 +333,10 @@ export default function CorreccionesPage() {
       color: '#9ca3af',
       cursor: 'not-allowed',
     },
+    btnJustify: {
+      backgroundColor: '#dbeafe',
+      color: '#1d4ed8',
+    },
     refreshBtn: {
       padding: '0.5rem 1rem',
       borderRadius: '0.5rem',
@@ -388,43 +394,38 @@ export default function CorreccionesPage() {
           />
         </div>
 
-        {/* Filtros adicionales - Solo para director */}
-        {isDirector && (
-          <>
-            <div style={styles.filterGroup}>
-              <label style={styles.filterLabel}>Fecha</label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                style={styles.input}
-              />
-            </div>
-            <div style={styles.filterGroup}>
-              <label style={styles.filterLabel}>Estado</label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                style={styles.select}
-              >
-                <option value="all">Todos</option>
-                <option value="present">Presentes</option>
-                <option value="late">Tardanzas</option>
-                <option value="absent">Faltas</option>
-              </select>
-            </div>
-          </>
-        )}
+        <div style={styles.filterGroup}>
+          <label style={styles.filterLabel}>Fecha</label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            style={styles.input}
+          />
+        </div>
+        <div style={styles.filterGroup}>
+          <label style={styles.filterLabel}>Estado</label>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={styles.select}
+          >
+            <option value="all">Todos</option>
+            <option value="present">Presentes</option>
+            <option value="late">Tardanzas</option>
+            <option value="absent">Faltas</option>
+          </select>
+        </div>
       </div>
 
       {!currentSession ? (
         <div style={styles.noSession}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📅</div>
           <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-            {isDirector ? 'No hay sesión para esta fecha' : 'No hay sesión activa hoy'}
+            No hay sesión para esta fecha
           </div>
           <div style={{ fontSize: '0.875rem' }}>
-            {isDirector ? 'Seleccione otra fecha con registros de asistencia' : 'Las correcciones solo están disponibles cuando hay una sesión abierta'}
+            Seleccione otra fecha con registros de asistencia
           </div>
         </div>
       ) : (
@@ -434,12 +435,10 @@ export default function CorreccionesPage() {
               <div style={styles.cardTitle}>
                 Registros de Asistencia ({filteredAttendances.length}{searchTerm ? ` de ${attendances.length}` : ''})
               </div>
-              {isDirector && (
-                <div style={styles.sessionInfo}>
-                  {formatDate(currentSession.date)} •
-                  Estado: {currentSession.status === 'open' ? 'Abierta' : 'Cerrada'}
-                </div>
-              )}
+              <div style={styles.sessionInfo}>
+                {formatDate(currentSession.date)} •
+                Estado: {currentSession.status === 'open' ? 'Abierta' : 'Cerrada'}
+              </div>
             </div>
             <button onClick={loadData} style={styles.refreshBtn}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -458,9 +457,7 @@ export default function CorreccionesPage() {
               <div style={{ fontSize: '0.875rem' }}>
                 {searchTerm
                   ? `No se encontró "${searchTerm}"`
-                  : isDirector
-                    ? 'No hay asistencias con el filtro seleccionado'
-                    : 'No hay tardanzas para corregir hoy'}
+                  : 'No hay asistencias con el filtro seleccionado'}
               </div>
             </div>
           ) : (
@@ -502,51 +499,22 @@ export default function CorreccionesPage() {
 
                       {/* Botones de cambio */}
                       <div style={styles.actions}>
-                        {isDirector ? (
-                          // Director: puede cambiar a cualquier estado
-                          <>
-                            {attendance.status !== 'present' && (
-                              <button
-                                onClick={() => handleChangeStatus(attendance.id, attendance.student_name, 'present')}
-                                disabled={isUpdating}
-                                style={{
-                                  ...styles.btn,
-                                  ...(isUpdating ? styles.btnDisabled : styles.btnPresent),
-                                }}
-                                title="Cambiar a Presente"
-                              >
-                                P
-                              </button>
-                            )}
-                            {attendance.status !== 'late' && (
-                              <button
-                                onClick={() => handleChangeStatus(attendance.id, attendance.student_name, 'late')}
-                                disabled={isUpdating}
-                                style={{
-                                  ...styles.btn,
-                                  ...(isUpdating ? styles.btnDisabled : styles.btnLate),
-                                }}
-                                title="Cambiar a Tardanza"
-                              >
-                                T
-                              </button>
-                            )}
-                            {attendance.status !== 'absent' && (
-                              <button
-                                onClick={() => handleChangeStatus(attendance.id, attendance.student_name, 'absent')}
-                                disabled={isUpdating}
-                                style={{
-                                  ...styles.btn,
-                                  ...(isUpdating ? styles.btnDisabled : styles.btnAbsent),
-                                }}
-                                title="Cambiar a Falta"
-                              >
-                                F
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          // Auxiliar: solo cambiar tardanza a presente
+                        {/* Botón de justificar (solo para tardanzas y faltas) */}
+                        {canJustify && attendance.status !== 'present' && (
+                          <button
+                            onClick={() => openJustificationModal(attendance)}
+                            disabled={isUpdating}
+                            style={{
+                              ...styles.btn,
+                              ...(isUpdating ? styles.btnDisabled : styles.btnJustify),
+                            }}
+                            title="Justificar"
+                          >
+                            J
+                          </button>
+                        )}
+                        {/* Botones de cambio de estado (solo director) */}
+                        {isDirector && attendance.status !== 'present' && (
                           <button
                             onClick={() => handleChangeStatus(attendance.id, attendance.student_name, 'present')}
                             disabled={isUpdating}
@@ -554,8 +522,35 @@ export default function CorreccionesPage() {
                               ...styles.btn,
                               ...(isUpdating ? styles.btnDisabled : styles.btnPresent),
                             }}
+                            title="Cambiar a Presente"
                           >
-                            {isUpdating ? '...' : 'Presente'}
+                            P
+                          </button>
+                        )}
+                        {isDirector && attendance.status !== 'late' && (
+                          <button
+                            onClick={() => handleChangeStatus(attendance.id, attendance.student_name, 'late')}
+                            disabled={isUpdating}
+                            style={{
+                              ...styles.btn,
+                              ...(isUpdating ? styles.btnDisabled : styles.btnLate),
+                            }}
+                            title="Cambiar a Tardanza"
+                          >
+                            T
+                          </button>
+                        )}
+                        {isDirector && attendance.status !== 'absent' && (
+                          <button
+                            onClick={() => handleChangeStatus(attendance.id, attendance.student_name, 'absent')}
+                            disabled={isUpdating}
+                            style={{
+                              ...styles.btn,
+                              ...(isUpdating ? styles.btnDisabled : styles.btnAbsent),
+                            }}
+                            title="Cambiar a Falta"
+                          >
+                            F
                           </button>
                         )}
                       </div>
@@ -567,6 +562,17 @@ export default function CorreccionesPage() {
           )}
         </div>
       )}
+
+      {/* Modal de Justificación */}
+      <JustificationModal
+        isOpen={justificationModalOpen}
+        onClose={() => {
+          setJustificationModalOpen(false);
+          setSelectedAttendance(null);
+        }}
+        attendance={selectedAttendance}
+        onSuccess={handleJustificationSuccess}
+      />
     </div>
   );
 }

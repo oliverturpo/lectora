@@ -7,6 +7,9 @@ from django.utils import timezone
 import json
 from .utils import get_attendance_times
 
+# Grupos para notificaciones por rol
+NOTIFICATION_GROUPS = ['notifications_director', 'notifications_auxiliar', 'notifications_psicologo']
+
 
 class AttendanceConsumer(AsyncWebsocketConsumer):
     """
@@ -80,6 +83,22 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
                     }
                 }
             )
+
+            # Si hay una notificación de entrada manual, enviarla a los grupos correspondientes
+            if result.get('notification'):
+                notification = result['notification']
+                for role in notification.get('target_roles', []):
+                    group_name = f'notifications_{role}'
+                    await self.channel_layer.group_send(
+                        group_name,
+                        {
+                            'type': 'notification_message',
+                            'message': {
+                                'type': 'new_notification',
+                                'notification': notification
+                            }
+                        }
+                    )
         else:
             await self.send(text_data=json.dumps({
                 'type': 'attendance_error',
@@ -88,12 +107,12 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def register_attendance(self, dni, laptop_id, method='scanner'):
-        """Registra la asistencia en la base de datos"""
+        """Registra la asistencia en la base de datos - OPTIMIZADO"""
         from apps.students.models import Student
-        from apps.attendance.models import DailySession, Attendance
-        from .utils import get_system_config
+        from apps.attendance.models import DailySession, Attendance, ManualEntryTracker, Notification
+        from .utils import get_system_config, get_attendance_times
 
-        # Verificar si hoy es día laborable
+        # OPTIMIZACIÓN: Una sola llamada a config (con cache)
         config = get_system_config()
         working_days = config.get('working_days', ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
         day_names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -102,14 +121,14 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
         if today_name not in working_days:
             return {'success': False, 'message': f'Hoy no es día laborable. No se registra asistencia.'}
 
-        # Buscar estudiante
+        # Buscar estudiante con select_related si tiene relaciones
         try:
             student = Student.objects.get(dni=dni, is_active=True)
         except Student.DoesNotExist:
             return {'success': False, 'message': f'Estudiante con DNI {dni} no encontrado'}
 
-        # Obtener horarios configurados
-        times = get_attendance_times()
+        # OPTIMIZACIÓN: Reusar config para obtener times (evita query duplicada)
+        times = get_attendance_times(config)
         now = timezone.localtime().time()
 
         # Verificar si es hora válida ANTES de crear/usar sesión
@@ -168,30 +187,64 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
         # Determinar estado (puntual o tardanza)
         now = timezone.localtime().time()
         if now <= session.punctuality_limit:
-            status = 'present'
+            att_status = 'present'
         else:
-            status = 'late'
+            att_status = 'late'
 
         # Crear registro de asistencia
         attendance = Attendance.objects.create(
             student=student,
             session=session,
             scan_timestamp=timezone.now(),
-            status=status,
+            status=att_status,
             laptop_id=laptop_id,
             registration_method=method
         )
 
         # Actualizar contadores de la sesion
-        if status == 'present':
+        if att_status == 'present':
             session.total_present += 1
         else:
             session.total_late += 1
         session.save()
 
+        # === RASTREO DE ENTRADA MANUAL ===
+        notification_data = None
+        if method == 'manual':
+            tracker, _ = ManualEntryTracker.objects.get_or_create(student=student)
+            tracker.count += 1
+            tracker.last_entry_at = timezone.now()
+            tracker.save()
+
+            # Si alcanzó 3 entradas manuales y no se ha enviado alerta
+            if tracker.count >= 3 and not tracker.alert_sent:
+                # Crear notificación
+                notification = Notification.objects.create(
+                    notification_type='manual_entry_alert',
+                    title='Alerta: Entrada Manual Frecuente',
+                    message=f'{student.full_name} ({student.dni}) ha ingresado {tracker.count} veces por teclado. '
+                            f'Se recomienda verificar su carnet.',
+                    target_roles=['auxiliar', 'psicologo'],
+                    student=student,
+                    session=session
+                )
+                tracker.alert_sent = True
+                tracker.save()
+
+                notification_data = {
+                    'id': notification.id,
+                    'type': notification.notification_type,
+                    'title': notification.title,
+                    'message': notification.message,
+                    'student_name': student.full_name,
+                    'student_dni': student.dni,
+                    'target_roles': notification.target_roles,
+                    'created_at': notification.created_at.isoformat()
+                }
+
         # Preparar respuesta
         photo_url = student.photo.url if student.photo else None
-        return {
+        result = {
             'success': True,
             'data': {
                 'id': attendance.id,
@@ -200,9 +253,10 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
                 'grade': student.grade,
                 'section': student.section,
                 'photo': photo_url,
-                'status': status,
+                'status': att_status,
                 'scan_timestamp': attendance.scan_timestamp.isoformat(),
-                'laptop_id': laptop_id
+                'laptop_id': laptop_id,
+                'registration_method': method
             },
             'counters': {
                 'total': session.total_students,
@@ -211,6 +265,11 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
                 'absent': session.total_students - session.total_present - session.total_late
             }
         }
+
+        if notification_data:
+            result['notification'] = notification_data
+
+        return result
 
     async def send_error(self, message):
         """Envia un mensaje de error"""
@@ -221,4 +280,66 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
 
     async def attendance_message(self, event):
         """Enviar mensaje al WebSocket"""
+        await self.send(text_data=json.dumps(event['message']))
+
+    async def notification_message(self, event):
+        """Enviar notificación al WebSocket"""
+        await self.send(text_data=json.dumps(event['message']))
+
+
+class NotificationConsumer(AsyncWebsocketConsumer):
+    """
+    Consumer para manejar notificaciones en tiempo real por rol
+    """
+
+    async def connect(self):
+        """Cuando un cliente se conecta"""
+        # Intentar obtener el rol del usuario desde query params o scope
+        self.user_role = self.scope.get('url_route', {}).get('kwargs', {}).get('role', 'auxiliar')
+
+        # Grupo de notificaciones por rol
+        self.notification_group = f'notifications_{self.user_role}'
+
+        await self.channel_layer.group_add(
+            self.notification_group,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        """Cuando un cliente se desconecta"""
+        await self.channel_layer.group_discard(
+            self.notification_group,
+            self.channel_name
+        )
+
+    async def receive(self, text_data):
+        """Cuando se recibe un mensaje"""
+        try:
+            data = json.loads(text_data)
+            msg_type = data.get('type')
+
+            if msg_type == 'set_role':
+                # Cambiar grupo si se actualiza el rol
+                old_group = self.notification_group
+                self.user_role = data.get('role', 'auxiliar')
+                self.notification_group = f'notifications_{self.user_role}'
+
+                await self.channel_layer.group_discard(old_group, self.channel_name)
+                await self.channel_layer.group_add(self.notification_group, self.channel_name)
+
+                await self.send(text_data=json.dumps({
+                    'type': 'role_updated',
+                    'role': self.user_role
+                }))
+
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': str(e)
+            }))
+
+    async def notification_message(self, event):
+        """Enviar notificación al WebSocket"""
         await self.send(text_data=json.dumps(event['message']))

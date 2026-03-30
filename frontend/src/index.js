@@ -7,23 +7,27 @@ import './index.css';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { AttendanceProvider } from './contexts/AttendanceContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <AttendanceProvider>
-          <App />
-          <ToastContainer
-            position="top-right"
-            autoClose={3000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            pauseOnHover
-          />
-        </AttendanceProvider>
+        <NotificationProvider>
+          <AttendanceProvider>
+            <App />
+            <ToastContainer
+              position="top-right"
+              autoClose={2000}
+              hideProgressBar
+              newestOnTop
+              closeOnClick
+              pauseOnHover={false}
+              limit={1}
+            />
+          </AttendanceProvider>
+        </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

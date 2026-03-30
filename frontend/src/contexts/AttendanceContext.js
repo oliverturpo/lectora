@@ -20,19 +20,20 @@ export function AttendanceProvider({ children }) {
   const handleWsMessage = useCallback((data) => {
     switch (data.type) {
       case 'attendance_registered':
-        // Agregar al historial de escaneos
-        setRecentScans((prev) => [data.data, ...prev].slice(0, 50));
+        // Agregar al historial de escaneos (limitado a 20)
+        setRecentScans((prev) => [data.data, ...prev].slice(0, 20));
         // Actualizar estadisticas
         if (data.counters) {
           setStats(data.counters);
         }
-        // Notificacion
+        // Notificacion (usa toastId fijo para reemplazar en vez de acumular)
+        const toastConfig = { toastId: 'scan-toast' };
         if (data.already_registered) {
-          toast.info(`${data.data.student_name} - YA REGISTRADO`);
+          toast.info(`${data.data.student_name} - YA REGISTRADO`, toastConfig);
         } else if (data.data.status === 'present') {
-          toast.success(`${data.data.student_name} - PRESENTE`);
+          toast.success(`${data.data.student_name} - PRESENTE`, toastConfig);
         } else if (data.data.status === 'late') {
-          toast.warning(`${data.data.student_name} - TARDANZA`);
+          toast.warning(`${data.data.student_name} - TARDANZA`, toastConfig);
         }
         break;
 

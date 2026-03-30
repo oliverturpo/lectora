@@ -16,7 +16,8 @@ export default function ScannerPage() {
   const [cameraMode, setCameraMode] = useState(false);
   const [inputStartTime, setInputStartTime] = useState(null);
   const inputRef = useRef(null);
-  const prevScansLengthRef = useRef(0);
+  const lastScanIdRef = useRef(null);
+  const mobileModalTimerRef = useRef(null);
   const { isMobile, isDesktop } = useScreenSize();
 
   // Hook para scanner de cámara (solo se activa en modo cámara)
@@ -64,29 +65,38 @@ export default function ScannerPage() {
   }, [cameraMode, isScanning, startScanning]);
 
   useEffect(() => {
-    if (recentScans.length > 0 && recentScans.length > prevScansLengthRef.current) {
+    if (recentScans.length > 0) {
       const newScan = recentScans[0];
-      setLastScan(newScan);
+      const scanId = `${newScan.dni}-${newScan.scan_timestamp}`;
 
-      if (newScan.status === 'present') {
-        playSuccess();
-        setScanResult('success');
-      } else if (newScan.status === 'late') {
-        playWarning();
-        setScanResult('warning');
-      } else {
-        playError();
-        setScanResult('error');
+      // Solo procesar si es un escaneo nuevo
+      if (scanId !== lastScanIdRef.current) {
+        lastScanIdRef.current = scanId;
+        setLastScan(newScan);
+
+        if (newScan.status === 'present') {
+          playSuccess();
+          setScanResult('success');
+        } else if (newScan.status === 'late') {
+          playWarning();
+          setScanResult('warning');
+        } else {
+          playError();
+          setScanResult('error');
+        }
+
+        if (isMobile) {
+          // Cancelar timer anterior si existe
+          if (mobileModalTimerRef.current) {
+            clearTimeout(mobileModalTimerRef.current);
+          }
+          setShowMobileModal(true);
+          mobileModalTimerRef.current = setTimeout(() => setShowMobileModal(false), 2000);
+        }
+
+        setTimeout(() => setScanResult(null), 800);
       }
-
-      if (isMobile) {
-        setShowMobileModal(true);
-        setTimeout(() => setShowMobileModal(false), 3000);
-      }
-
-      setTimeout(() => setScanResult(null), 800);
     }
-    prevScansLengthRef.current = recentScans.length;
   }, [recentScans, isMobile, playSuccess, playError, playWarning]);
 
   const handleScan = useCallback((e) => {
@@ -374,13 +384,13 @@ export default function ScannerPage() {
             Verificacion
           </div>
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {lastScan ? (
               <motion.div
-                key={lastScan.dni + lastScan.scan_timestamp}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
+                key={lastScan.dni}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.15 }}
                 style={{
                   textAlign: 'center',
                   background: 'white',
@@ -433,11 +443,7 @@ export default function ScannerPage() {
                   marginBottom: '1.25rem',
                 }}>{lastScan.grade}° - Seccion {lastScan.section}</div>
 
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
-                  style={{
+                <div style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.5rem',
@@ -451,7 +457,7 @@ export default function ScannerPage() {
                 >
                   <span>{getStatusConfig(lastScan.status).icon}</span>
                   {getStatusConfig(lastScan.status).label}
-                </motion.div>
+                </div>
 
                 <div style={{
                   marginTop: '1rem',
@@ -460,17 +466,14 @@ export default function ScannerPage() {
                 }}>{formatTime(lastScan.scan_timestamp)}</div>
               </motion.div>
             ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                style={{
+              <div style={{
                   textAlign: 'center',
                   color: '#ccc',
                 }}
               >
                 <div style={{ fontSize: '5rem', marginBottom: '1rem', opacity: 0.5 }}>👤</div>
                 <div style={{ fontSize: '1rem' }}>Esperando escaneo...</div>
-              </motion.div>
+              </div>
             )}
           </AnimatePresence>
         </div>

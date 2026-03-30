@@ -13,9 +13,9 @@ import ConfigPage from './pages/ConfigPage';
 import AvanzadoPage from './pages/AvanzadoPage';
 import CorreccionesPage from './pages/CorreccionesPage';
 
-// Componente para rutas protegidas
-function PrivateRoute({ children, requireDirector = false }) {
-  const { isAuthenticated, loading, isDirector } = useAuth();
+// Componente para rutas protegidas con permisos por rol
+function PrivateRoute({ children, allowedPages = [] }) {
+  const { isAuthenticated, loading, canAccessPage, getDefaultRoute } = useAuth();
 
   if (loading) {
     return <Loading fullPage text="Verificando sesion..." />;
@@ -25,8 +25,12 @@ function PrivateRoute({ children, requireDirector = false }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requireDirector && !isDirector) {
-    return <Navigate to="/scanner" replace />;
+  // Si hay páginas permitidas especificadas, verificar acceso
+  if (allowedPages.length > 0) {
+    const hasAccess = allowedPages.some(page => canAccessPage(page));
+    if (!hasAccess) {
+      return <Navigate to={getDefaultRoute()} replace />;
+    }
   }
 
   return children;
@@ -56,7 +60,7 @@ function Layout({ children }) {
 }
 
 export default function App() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, getDefaultRoute } = useAuth();
 
   // Cargar configuración y actualizar título del documento
   useEffect(() => {
@@ -80,21 +84,23 @@ export default function App() {
     return <Loading fullPage text="Cargando..." />;
   }
 
+  const defaultRoute = getDefaultRoute();
+
   return (
     <Routes>
       {/* Login publico */}
       <Route
         path="/login"
         element={
-          isAuthenticated ? <Navigate to="/" replace /> : <Login />
+          isAuthenticated ? <Navigate to={defaultRoute} replace /> : <Login />
         }
       />
 
-      {/* Dashboard - solo director */}
+      {/* Dashboard - director y psicólogo */}
       <Route
         path="/"
         element={
-          <PrivateRoute requireDirector>
+          <PrivateRoute allowedPages={['dashboard']}>
             <Layout>
               <Dashboard />
             </Layout>
@@ -106,7 +112,7 @@ export default function App() {
       <Route
         path="/scanner"
         element={
-          <PrivateRoute>
+          <PrivateRoute allowedPages={['scanner']}>
             <Layout>
               <ScannerPage />
             </Layout>
@@ -118,7 +124,7 @@ export default function App() {
       <Route
         path="/students"
         element={
-          <PrivateRoute requireDirector>
+          <PrivateRoute allowedPages={['students']}>
             <Layout>
               <StudentsPage />
             </Layout>
@@ -126,11 +132,11 @@ export default function App() {
         }
       />
 
-      {/* Reportes - solo director */}
+      {/* Reportes - director y psicólogo */}
       <Route
         path="/reports"
         element={
-          <PrivateRoute requireDirector>
+          <PrivateRoute allowedPages={['reports']}>
             <Layout>
               <ReportsPage />
             </Layout>
@@ -138,11 +144,11 @@ export default function App() {
         }
       />
 
-      {/* Correcciones - todos los autenticados (auxiliar y director) */}
+      {/* Correcciones/Justificar - director, psicólogo y auxiliar */}
       <Route
         path="/correcciones"
         element={
-          <PrivateRoute>
+          <PrivateRoute allowedPages={['correcciones']}>
             <Layout>
               <CorreccionesPage />
             </Layout>
@@ -150,11 +156,11 @@ export default function App() {
         }
       />
 
-      {/* Avanzado - solo director */}
+      {/* Avanzado - director y psicólogo */}
       <Route
         path="/avanzado"
         element={
-          <PrivateRoute requireDirector>
+          <PrivateRoute allowedPages={['avanzado']}>
             <Layout>
               <AvanzadoPage />
             </Layout>
@@ -166,7 +172,7 @@ export default function App() {
       <Route
         path="/config"
         element={
-          <PrivateRoute requireDirector>
+          <PrivateRoute allowedPages={['config']}>
             <Layout>
               <ConfigPage />
             </Layout>
@@ -174,8 +180,8 @@ export default function App() {
         }
       />
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Catch all - redirigir a ruta por defecto del usuario */}
+      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
     </Routes>
   );
 }

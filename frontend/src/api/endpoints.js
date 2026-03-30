@@ -97,3 +97,18 @@ export const usersAPI = {
   delete: (id) => api.delete(`/users/${id}/`),
   me: () => api.get('/users/me/'),
 };
+
+// Notifications
+export const notificationsAPI = {
+  list: () => api.get('/attendance/notifications/'),
+  unreadCount: () => api.get('/attendance/notifications/unread_count/'),
+  markRead: (id) => api.post(`/attendance/notifications/${id}/mark_read/`),
+  markAllRead: () => api.post('/attendance/notifications/mark_all_read/'),
+};
+
+// Justifications
+export const justificationsAPI = {
+  create: (data) => api.post('/attendance/justify/', data),
+  getStudentStatus: (studentId) => api.get(`/attendance/students/${studentId}/justification-status/`),
+  getAttendanceJustification: (attendanceId) => api.get(`/attendance/${attendanceId}/justification/`),
+};

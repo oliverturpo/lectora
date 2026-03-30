@@ -198,6 +198,192 @@ class SystemConfig(models.Model):
     class Meta:
         verbose_name = 'Configuración del Sistema'
         verbose_name_plural = 'Configuraciones del Sistema'
-    
+
     def __str__(self):
         return f"{self.config_key}: {self.config_value}"
+
+
+class ManualEntryTracker(models.Model):
+    """
+    Rastreador de entradas manuales por estudiante (acumulativo)
+    Se usa para detectar estudiantes que ingresan frecuentemente por teclado
+    """
+    student = models.OneToOneField(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='manual_entry_tracker',
+        verbose_name='Estudiante'
+    )
+    count = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Conteo de Entradas Manuales'
+    )
+    alert_sent = models.BooleanField(
+        default=False,
+        verbose_name='Alerta Enviada'
+    )
+    last_entry_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Última Entrada Manual'
+    )
+
+    class Meta:
+        verbose_name = 'Rastreador de Entrada Manual'
+        verbose_name_plural = 'Rastreadores de Entrada Manual'
+
+    def __str__(self):
+        return f"{self.student.full_name} - {self.count} entradas manuales"
+
+
+class Justification(models.Model):
+    """
+    Justificación de una asistencia (falta o tardanza)
+    """
+    attendance = models.OneToOneField(
+        Attendance,
+        on_delete=models.CASCADE,
+        related_name='justification',
+        verbose_name='Asistencia'
+    )
+    reason = models.TextField(
+        verbose_name='Motivo de Justificación'
+    )
+    justified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='justifications_made',
+        verbose_name='Justificado Por'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Fecha de Justificación'
+    )
+
+    class Meta:
+        verbose_name = 'Justificación'
+        verbose_name_plural = 'Justificaciones'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Justificación: {self.attendance.student.full_name} - {self.attendance.session.date}"
+
+
+class StudentJustificationCounter(models.Model):
+    """
+    Contador de justificaciones por estudiante (acumulativo)
+    Límite de 3 justificaciones, luego se reinicia con confirmación
+    """
+    student = models.OneToOneField(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='justification_counter',
+        verbose_name='Estudiante'
+    )
+    count = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Conteo de Justificaciones'
+    )
+    last_reset_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Último Reinicio'
+    )
+
+    class Meta:
+        verbose_name = 'Contador de Justificaciones'
+        verbose_name_plural = 'Contadores de Justificaciones'
+
+    def __str__(self):
+        return f"{self.student.full_name} - {self.count} justificaciones"
+
+
+class Notification(models.Model):
+    """
+    Notificación del sistema
+    """
+    NOTIFICATION_TYPES = [
+        ('manual_entry_alert', 'Alerta de Entrada Manual'),
+        ('justification_limit', 'Límite de Justificaciones'),
+        ('system', 'Sistema'),
+    ]
+
+    notification_type = models.CharField(
+        max_length=50,
+        choices=NOTIFICATION_TYPES,
+        verbose_name='Tipo de Notificación'
+    )
+    title = models.CharField(
+        max_length=200,
+        verbose_name='Título'
+    )
+    message = models.TextField(
+        verbose_name='Mensaje'
+    )
+    target_roles = models.JSONField(
+        default=list,
+        verbose_name='Roles Destino'
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='notifications',
+        verbose_name='Estudiante'
+    )
+    session = models.ForeignKey(
+        DailySession,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='notifications',
+        verbose_name='Sesión'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Fecha de Creación'
+    )
+
+    class Meta:
+        verbose_name = 'Notificación'
+        verbose_name_plural = 'Notificaciones'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['notification_type']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_notification_type_display()})"
+
+
+class NotificationRead(models.Model):
+    """
+    Marca de lectura de notificación por usuario
+    """
+    notification = models.ForeignKey(
+        Notification,
+        on_delete=models.CASCADE,
+        related_name='reads',
+        verbose_name='Notificación'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notification_reads',
+        verbose_name='Usuario'
+    )
+    read_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Fecha de Lectura'
+    )
+
+    class Meta:
+        verbose_name = 'Lectura de Notificación'
+        verbose_name_plural = 'Lecturas de Notificaciones'
+        unique_together = [['notification', 'user']]
+
+    def __str__(self):
+        return f"{self.user.username} leyó {self.notification.title}"
