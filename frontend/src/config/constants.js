@@ -1,17 +1,10 @@
 export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
-// WebSocket dinámico: usa la misma IP/host del navegador
+// WebSocket SIEMPRE dinámico: usa la misma IP/host del navegador
 const getWsUrl = () => {
-  // Si hay variable de entorno con localhost, usar dinámica
-  const envWs = process.env.REACT_APP_WS_URL;
-  if (envWs && !envWs.includes('localhost')) {
-    return envWs;
-  }
-  // Generar URL basada en el host actual del navegador
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = window.location.hostname;
-  const port = '8000';
-  return `${protocol}//${host}:${port}/ws`;
+  const host = window.location.hostname || 'localhost';
+  return `${protocol}//${host}:8000/ws`;
 };
 export const WS_URL = getWsUrl();
 
